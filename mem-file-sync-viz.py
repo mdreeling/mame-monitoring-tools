@@ -5,7 +5,7 @@ import os
 
 # Define parameters for memory representation
 memory_size = 16 * 1024 * 1024  # 16 MB total memory
-block_size = 16  # Each row represents 16 bytes (16 columns)
+block_size = 256  # Each row represents 256 bytes (256 columns)
 
 # Calculate the number of rows for the memory grid
 num_rows = memory_size // block_size
@@ -17,14 +17,14 @@ write_heatmap = np.zeros((num_rows, block_size), dtype=np.uint32)
 # Create the figure for dynamic updating
 plt.ion()  # Interactive mode on
 fig, ax = plt.subplots(figsize=(16, 9))
-plt.xlabel('Memory Offset within Row (0-15)')
+plt.xlabel('Memory Offset within Row (0-255)')
 plt.ylabel('Base Memory Address (Row)')
 plt.title('Dynamic Memory Read/Write Heatmap')
 
 # Function to update the memory access plot
 def update_memory_access_plot(read_heatmap, write_heatmap, ax):
     ax.clear()
-    plt.xlabel('Memory Offset within Row (0-15)')
+    plt.xlabel('Memory Offset within Row (0-255)')
     plt.ylabel('Base Memory Address (Row)')
     plt.title('Dynamic Memory Read/Write Heatmap')
 
@@ -46,7 +46,7 @@ def update_memory_access_plot(read_heatmap, write_heatmap, ax):
     plt.pause(0.1)
 
 # Monitor the memory access log file for changes with roll-over detection
-log_file_path = "memory_access.log"
+log_file_path = "..\..\mame\memory_access.log"
 last_read_position = 0
 
 while True:
