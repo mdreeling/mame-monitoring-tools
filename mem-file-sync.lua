@@ -51,8 +51,8 @@ end
 
 -- Set watchpoints on the entire address range (adjust the range as needed)
 --for address = 0, 0xFFFFFF do  -- Entire 16MB address range
-mem_space:install_write_tap(0xFFFFA4, 0xFFFFFF, "writes", on_memory_write)
-mem_space:install_read_tap(0xFFFFA4, 0xFFFFFF, "reads", on_memory_read)
+mem_space:install_write_tap(0x000000, 0xFFFFFF, "writes", on_memory_write)
+mem_space:install_read_tap(0x000000, 0xFFFFFF, "reads", on_memory_read)
 --end
 
 -- Register a function to check log size and handle rollover at each frame
