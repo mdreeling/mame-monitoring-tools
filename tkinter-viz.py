@@ -4,7 +4,7 @@ import time
 
 # Define parameters for memory representation
 memory_size = 16 * 1024 * 1024  # 16 MB total memory
-num_boxes = 150  # Divide the memory map into 100 boxes
+num_boxes = 250  # Divide the memory map into 100 boxes
 box_size = memory_size // num_boxes
 
 # Initialize read and write counts for each box
@@ -14,16 +14,16 @@ write_counts = [0] * num_boxes
 # Create the Tkinter window
 root = tk.Tk()
 root.title("Memory Access Heatmap")
-canvas = tk.Canvas(root, width=1920, height=1080, bg="white")
+canvas = tk.Canvas(root, width=1000, height=500, bg="white")
 canvas.pack()
 
 # Draw initial boxes on the canvas
 def draw_initial_boxes():
     for i in range(num_boxes):
-        x0 = i * (1920 // num_boxes)
-        x1 = (i + 1) * (1920 // num_boxes)
+        x0 = i * (1000 // num_boxes)
+        x1 = (i + 1) * (1000 // num_boxes)
         y0 = 0
-        y1 = 1080
+        y1 = 500
         canvas.create_rectangle(x0, y0, x1, y1, outline="black", fill="white", tags=f"box_{i}")
 
 draw_initial_boxes()
@@ -48,7 +48,7 @@ def reset_box(index):
 log_file_path = "..\..\mame\memory_access.log"
 last_read_position = 0
 update_interval = 0.1  # Configurable update interval in seconds
-flash_threshold = 1000  # Number of reads/writes before flashing
+flash_threshold = 100000  # Number of reads/writes before flashing
 
 while True:
     if os.path.exists(log_file_path):

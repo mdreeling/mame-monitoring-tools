@@ -97,4 +97,4 @@ while True:
 
     # Update the plot with the new heatmap data
     update_memory_access_plot(read_heatmap, write_heatmap, ax)
-    time.sleep(0.5)  # Short delay to allow visualization updates
+    time.sleep(0.1)  # Short delay to allow visualization updates
