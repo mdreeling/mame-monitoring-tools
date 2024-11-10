@@ -1,6 +1,12 @@
 local log_file_path = "memory_access.log"
 local max_log_size = 1 * 1024 * 1024 * 1024  -- 1 GB
+
+-- Attempt to open the log file for writing
 local log_file = io.open(log_file_path, "w")
+if log_file == nil then
+    error(string.format("Failed to open log file at path: %s. Please check the path and permissions.", log_file_path))
+end
+
 local main_cpu = nil
 
 -- Identify the CPU automatically
@@ -27,31 +33,38 @@ end
 
 -- Function to write to the log and handle log rollover
 local function write_to_log(data)
+    if log_file == nil then
+        error("Log file is not open. Unable to write data.")
+    end
     log_file:write(data)
     log_file:flush()
 end
 
-local current_address = 0x000000
-local max_address = 0x00FFFF  -- Define the end of the range you want to monitor
+-- Callback function for memory write
+local function on_memory_write(address, value)
+    write_to_log(string.format("write,%06X,value,%02X\n", address, value))
+end
+-- Callback function for memory write
+local function on_memory_read(address, value)
+    write_to_log(string.format("read,%06X,value,%02X\n", address, value))
+end
 
--- Register a function to poll memory addresses at each frame
+-- Set watchpoints on the entire address range (adjust the range as needed)
+--for address = 0, 0xFFFFFF do  -- Entire 16MB address range
+mem_space:install_write_tap(0xFFFFA4, 0xFFFFFF, "writes", on_memory_write)
+mem_space:install_read_tap(0xFFFFA4, 0xFFFFFF, "reads", on_memory_read)
+--end
+
+-- Register a function to check log size and handle rollover at each frame
 emu.register_frame_done(function()
-    -- Poll a range of memory addresses dynamically
-    for _ = 1, 10 do  -- Sample 10 different addresses per frame for better coverage
-        local value = mem_space:read_u8(current_address)
-        write_to_log(string.format("read,%06X,value,%02X\n", current_address, value))
-
-        current_address = current_address + 1
-        if current_address > max_address then
-            current_address = 0x000000  -- Reset to the beginning of the range if we reach the end
-        end
-    end
-
     -- Handle log rollover if file size exceeds limit
     local file_size = log_file:seek("end")  -- Get the current file size
     if file_size >= max_log_size then
         log_file:close()  -- Close the current log file
         log_file = io.open(log_file_path, "w")  -- Reopen it to start from scratch
+        if log_file == nil then
+            error(string.format("Failed to reopen log file at path: %s. Please check the path and permissions.", log_file_path))
+        end
         log_file:write("-- Log rollover occurred --\n")  -- Mark the rollover in the log
         log_file:flush()  -- Ensure the message is written immediately
     end

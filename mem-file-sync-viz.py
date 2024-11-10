@@ -78,6 +78,9 @@ while True:
                         row = address // block_size
                         col = address % block_size
                         
+                        # Debug output for calculated row and column
+                        print(f"Address: {address_hex}, Row: {row}, Col: {col}")
+
                         if row < num_rows and col < block_size:
                             if access_type == 'read':
                                 # Increment the value in the heatmap to indicate a read occurred
