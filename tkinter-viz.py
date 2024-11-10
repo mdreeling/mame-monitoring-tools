@@ -5,6 +5,7 @@ import time
 # Define parameters for memory representation
 memory_size = 16 * 1024 * 1024  # 16 MB total memory
 num_boxes = 250  # Divide the memory map into 100 boxes
+canvas_width = 2000
 box_size = memory_size // num_boxes
 
 # Initialize read and write counts for each box
@@ -14,14 +15,14 @@ write_counts = [0] * num_boxes
 # Create the Tkinter window
 root = tk.Tk()
 root.title("Memory Access Heatmap")
-canvas = tk.Canvas(root, width=1000, height=500, bg="white")
+canvas = tk.Canvas(root, width=canvas_width, height=500, bg="white")
 canvas.pack()
 
 # Draw initial boxes on the canvas
 def draw_initial_boxes():
     for i in range(num_boxes):
-        x0 = i * (1000 // num_boxes)
-        x1 = (i + 1) * (1000 // num_boxes)
+        x0 = i * (canvas_width // num_boxes)
+        x1 = (i + 1) * (canvas_width // num_boxes)
         y0 = 0
         y1 = 500
         canvas.create_rectangle(x0, y0, x1, y1, outline="black", fill="white", tags=f"box_{i}")
@@ -30,8 +31,8 @@ draw_initial_boxes()
 
 # Update the boxes with read/write colors temporarily
 def flash_box(index, color, duration=0.1):
-    x0 = index * (1000 // num_boxes)
-    x1 = (index + 1) * (1000 // num_boxes)
+    x0 = index * (canvas_width // num_boxes)
+    x1 = (index + 1) * (canvas_width // num_boxes)
     if color == 'yellow':
         canvas.create_rectangle(x0, 0, x1, 250, outline="black", fill=color, tags=f"box_{index}")
     elif color == 'green':
@@ -39,8 +40,8 @@ def flash_box(index, color, duration=0.1):
 
 # Reset the box to white after a delay
 def reset_box(index):
-    x0 = index * (1000 // num_boxes)
-    x1 = (index + 1) * (1000 // num_boxes)
+    x0 = index * (canvas_width // num_boxes)
+    x1 = (index + 1) * (canvas_width // num_boxes)
     canvas.create_rectangle(x0, 0, x1, 500, outline="black", fill="white", tags=f"box_{index}")
     canvas.update()
 
@@ -48,7 +49,7 @@ def reset_box(index):
 log_file_path = "..\..\mame\memory_access.log"
 last_read_position = 0
 update_interval = 0.1  # Configurable update interval in seconds
-flash_threshold = 100000  # Number of reads/writes before flashing
+flash_threshold = 25000  # Number of reads/writes before flashing
 
 while True:
     if os.path.exists(log_file_path):

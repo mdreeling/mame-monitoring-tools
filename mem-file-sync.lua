@@ -24,8 +24,6 @@ if main_cpu == nil then
     error("No CPU found for memory access")
 end
 
-log_file:flush()
-
 -- Get the program memory space for the identified CPU
 local mem_space = manager.machine.devices[main_cpu].spaces["program"]
 
@@ -35,7 +33,7 @@ end
 
 -- Function to write to the log and handle log rollover
 local write_buffer = {}
-local buffer_size = 1000  -- Buffer size for batching log writes
+local buffer_size = 5000  -- Buffer size for batching log writes
 
 local function write_to_log(data)
     if log_file == nil then
@@ -45,11 +43,9 @@ local function write_to_log(data)
     if #write_buffer >= buffer_size then
         log_file:write(table.concat(write_buffer))
         write_buffer = {}  -- Clear buffer after writing
-        end
-        write_buffer = {}  -- Clear buffer after writing
-            if frame_counter % 60 == 0 then
-            log_file:flush()
-        end
+    end
+    if frame_counter % 60 == 0 then
+        log_file:flush()
     end
 
     -- Check if the log file exceeds the maximum size and rotate if necessary
@@ -68,24 +64,24 @@ end
 
 -- Callback function for memory write
 local function on_memory_write(address, value)
-    --write_to_log(string.format("write,%06X,value,%02X\n", address, value))
+    write_to_log(string.format("write,%06X,value,%02X\n", address, value))
 end
 
 -- Callback function for memory read
 local function on_memory_read(address, value)
-    --write_to_log(string.format("read,%06X,value,%02X\n", address, value))
+    write_to_log(string.format("read,%06X,value,%02X\n", address, value))
 end
 
 -- Function to set memory taps
 local function set_memory_taps()
     print("Setting memory read and write taps...")
-    passthrough_read = mem_space:install_read_tap(0x000000, 0x0FFFE1, "reads", on_memory_read)
-    passthrough_write = mem_space:install_write_tap(0x000000, 0x0FFFE1, "writes", on_memory_write)
+    passthrough_read = mem_space:install_read_tap(0x000000, 0xFFFFFF, "reads", on_memory_read)
+    passthrough_write = mem_space:install_write_tap(0x000000, 0xFFFFFF, "writes", on_memory_write)
 end
 
 set_memory_taps()
 
--- Register a frame done callback to wait for 10 seconds (600 frames) before setting the memory taps
+-- Register a frame done callback to manage log buffer flushes and reinstall taps if necessary
 emu.register_frame_done(function()
 
     -- Flush the buffer to the log file every frame
@@ -94,14 +90,11 @@ emu.register_frame_done(function()
         write_buffer = {}
     end
     
-    if frame_counter % 600 == 0 then
-        --set_memory_taps()
-    end
     -- Increment frame counter every frame
     frame_counter = frame_counter + 1
 
-    -- Once the delay has passed, set the memory taps
-    --if frame_counter == delay_frames then
-    --    set_memory_taps()
-    --end
+    -- Reinstall memory taps every 60 frames
+    if frame_counter % 60 == 0 then
+        set_memory_taps()
+    end
 end)
