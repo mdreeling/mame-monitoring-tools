@@ -4,7 +4,7 @@ import time
 
 # Define parameters for memory representation
 memory_size = 16 * 1024 * 1024  # 16 MB total memory
-num_boxes = 1000  # Divide the memory map into 1000 boxes
+num_boxes = 10  # Divide the memory map into 1000 boxes
 box_size = memory_size // num_boxes
 
 # Initialize read and write counts for each box
@@ -20,8 +20,8 @@ canvas.pack()
 # Draw initial boxes on the canvas
 def draw_initial_boxes():
     for i in range(num_boxes):
-        x0 = i
-        x1 = i + 1
+        x0 = i * (1000 // num_boxes) * (1000 // num_boxes)
+        x1 = (i + 1) * (1000 // num_boxes)
         y0 = 0
         y1 = 500
         canvas.create_rectangle(x0, y0, x1, y1, outline="black", fill="white", tags=f"box_{i}")
@@ -33,13 +33,13 @@ def update_boxes():
     for i in range(num_boxes):
         # Calculate box positions
         x0 = i
-        x1 = i + 1
+        x1 = (i + 1) * (1000 // num_boxes)
 
         # Determine colors based on read and write counts
         if write_counts[i] > 0:
-            canvas.create_rectangle(x0, 0, x1, 250, outline="black", fill="yellow", tags=f"write_{i}")
+            canvas.create_rectangle(x0, 0, x1, 250, outline="black", fill="yellow", tags=f"box_{i}")
         if read_counts[i] > 0:
-            canvas.create_rectangle(x0, 250, x1, 500, outline="black", fill="green", tags=f"read_{i}")
+            canvas.create_rectangle(x0, 250, x1, 500, outline="black", fill="green", tags=f"box_{i}")
 
     canvas.update()
 
