@@ -1,5 +1,7 @@
 local log_file_path = "memory_access.log"
-local max_log_size = 1 * 1024 * 1024 * 1024  -- 1 GB
+-- local max_log_size = 1 * 1024 * 1024 * 1024  -- 1 GB
+local frame_counter = 0
+local delay_frames = 600  -- 10 seconds at 60 FPS
 
 -- Attempt to open the log file for writing
 local log_file = io.open(log_file_path, "w")
@@ -43,29 +45,31 @@ end
 -- Callback function for memory write
 local function on_memory_write(address, value)
     write_to_log(string.format("write,%06X,value,%02X\n", address, value))
+    --print("wrote : write ",value)
 end
 -- Callback function for memory write
 local function on_memory_read(address, value)
     write_to_log(string.format("read,%06X,value,%02X\n", address, value))
+    --print("wrote : read ",value)
 end
 
 -- Set watchpoints on the entire address range (adjust the range as needed)
 --for address = 0, 0xFFFFFF do  -- Entire 16MB address range
-mem_space:install_write_tap(0x000000, 0xFFFFFF, "writes", on_memory_write)
-mem_space:install_read_tap(0x000000, 0xFFFFFF, "reads", on_memory_read)
+-- mem_space:install_write_tap(0x000000, 0xFFFFFF, "writes", on_memory_write)
+-- mem_space:install_read_tap(0x000000, 0xFFFFFF, "reads", on_memory_read)
 --end
 
--- Register a function to check log size and handle rollover at each frame
 emu.register_frame_done(function()
-    -- Handle log rollover if file size exceeds limit
-    local file_size = log_file:seek("end")  -- Get the current file size
-    if file_size >= max_log_size then
-        log_file:close()  -- Close the current log file
-        log_file = io.open(log_file_path, "w")  -- Reopen it to start from scratch
-        if log_file == nil then
-            error(string.format("Failed to reopen log file at path: %s. Please check the path and permissions.", log_file_path))
-        end
-        log_file:write("-- Log rollover occurred --\n")  -- Mark the rollover in the log
-        log_file:flush()  -- Ensure the message is written immediately
+    -- Increment frame counter every frame
+    frame_counter = frame_counter + 1
+
+    -- Once the delay has passed, set the memory taps
+    if frame_counter == delay_frames then
+        print("Setting memory read and write taps...")
+        -- Install read and write taps for the entire address range
+        mem_space:install_read_tap(0x000000, 0xFFFFFF, "reads", on_memory_read)
+        mem_space:install_write_tap(0x000000, 0xFFFFFF, "writes", on_memory_write)  
     end
 end)
+
+
