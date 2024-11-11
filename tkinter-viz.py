@@ -57,22 +57,34 @@ write_counts = [0] * num_boxes
 current_memory_start = 0
 current_memory_end = memory_size - 1
 
-# Update read_counts and write_counts when zooming to the zoomed memory range
-def update_zoomed_counts():
-    global read_counts, write_counts
-    # Calculate the range of indexes in the global counts array for the zoomed range
-    start_index = int(current_memory_start / memory_size * len(global_read_counts))
-    end_index = start_index + num_boxes
+# Initialize the Zoom Out button but keep it hidden initially
+zoom_out_button = tk.Button(root, text="Zoom Out", command=lambda: zoom_out())
+zoom_out_button.pack()
+zoom_out_button.place_forget()  # Hide the button initially
 
-    # Slice and pad to ensure we have exactly num_boxes elements
-    read_counts = global_read_counts[start_index:end_index]
-    write_counts = global_write_counts[start_index:end_index]
+# Function to zoom out and reset the view to the original memory range
+def zoom_out():
+    global current_memory_start, current_memory_end, box_size, read_counts, write_counts
 
-    # If the sliced range is shorter than num_boxes, pad with zeros
-    read_counts += [0] * (num_boxes - len(read_counts))
-    write_counts += [0] * (num_boxes - len(write_counts))
+    # Reset to the original memory range
+    current_memory_start = 0
+    current_memory_end = memory_size - 1
+    box_size = memory_size // num_boxes
 
-# Function to handle double-click on a box and zoom into that memory range
+    # Update the main read_counts and write_counts to the full range
+    read_counts = global_read_counts[:num_boxes]
+    write_counts = global_write_counts[:num_boxes]
+
+    # Hide the Zoom Out button
+    zoom_out_button.place_forget()
+
+    # Update the displayed memory range label
+    update_memory_range_label(current_memory_start, current_memory_end)
+
+    # Redraw the initial grid
+    draw_initial_boxes()
+
+# Update the zoom function to show the Zoom Out button when zooming in
 def zoom_into_box(event):
     global box_size, current_memory_start, current_memory_end
     padding = 5
@@ -103,6 +115,86 @@ def zoom_into_box(event):
 
         # Redraw the grid based on the new memory range
         draw_initial_boxes()
+
+        # Show the Zoom Out button after zooming in
+        zoom_out_button.place(x=10, y=canvas_height + 50)
+
+# Update read_counts and write_counts when zooming to the zoomed memory range
+def update_zoomed_counts():
+    global read_counts, write_counts
+    # Calculate the range of indexes in the global counts array for the zoomed range
+    start_index = int(current_memory_start / memory_size * len(global_read_counts))
+    end_index = start_index + num_boxes
+
+    # Slice and pad to ensure we have exactly num_boxes elements
+    read_counts = global_read_counts[start_index:end_index]
+    write_counts = global_write_counts[start_index:end_index]
+
+    # If the sliced range is shorter than num_boxes, pad with zeros
+    read_counts += [0] * (num_boxes - len(read_counts))
+    write_counts += [0] * (num_boxes - len(write_counts))
+# Initialize the Zoom Out button but keep it hidden initially
+zoom_out_button = tk.Button(root, text="Zoom Out", command=lambda: zoom_out())
+zoom_out_button.pack()
+zoom_out_button.place_forget()  # Hide the button initially
+
+# Function to zoom out and reset the view to the original memory range
+def zoom_out():
+    global current_memory_start, current_memory_end, box_size, read_counts, write_counts
+
+    # Reset to the original memory range
+    current_memory_start = 0
+    current_memory_end = memory_size - 1
+    box_size = memory_size // num_boxes
+
+    # Update the main read_counts and write_counts to the full range
+    read_counts = global_read_counts[:num_boxes]
+    write_counts = global_write_counts[:num_boxes]
+
+    # Hide the Zoom Out button
+    zoom_out_button.place_forget()
+
+    # Update the displayed memory range label
+    update_memory_range_label(current_memory_start, current_memory_end)
+
+    # Redraw the initial grid
+    draw_initial_boxes()
+
+# Update the zoom function to show the Zoom Out button when zooming in
+def zoom_into_box(event):
+    global box_size, current_memory_start, current_memory_end
+    padding = 5
+    col = (event.x - padding) // ((canvas_width - 2 * padding) // grid_size)
+    row = (event.y - padding) // ((canvas_height - 2 * padding) // grid_size)
+    box_index = row * grid_size + col
+    
+    if 0 <= box_index < num_boxes:
+        # Calculate the memory range for the selected box within the current visible range
+        memory_range = current_memory_end - current_memory_start + 1
+        box_memory_size = memory_range // num_boxes
+
+        # Determine the start and end of the new memory range based on the selected box
+        new_memory_start = current_memory_start + (box_index * box_memory_size)
+        new_memory_end = new_memory_start + box_memory_size - 1
+
+        # Update global memory range for subsequent zooms
+        current_memory_start, current_memory_end = new_memory_start, new_memory_end
+
+        # Set new box size to reflect the zoomed-in range
+        box_size = max((new_memory_end - new_memory_start + 1) // num_boxes, 1)
+
+        # Update the displayed memory range label to focus on this box's range
+        update_memory_range_label(new_memory_start, new_memory_end)
+
+        # Update the read and write counts for the zoomed range
+        update_zoomed_counts()
+
+        # Redraw the grid based on the new memory range
+        draw_initial_boxes()
+
+        # Show the Zoom Out button after zooming in
+        zoom_out_button.place(x=10, y=canvas_height + 50)
+
 
 # Bind double-click event to zoom into the clicked box
 canvas.bind("<Double-Button-1>", zoom_into_box)
