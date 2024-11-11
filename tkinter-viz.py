@@ -10,88 +10,108 @@ canvas_width = 1010  # Add 5 pixels of padding on each side
 canvas_height = 1010  # Add 5 pixels of padding on each side
 box_size = memory_size // num_boxes
 
+# Initialize global read and write counts for the entire memory size, not just num_boxes
+# This assumes each "box" at the top level corresponds to a smaller chunk of the total memory size.
+total_boxes = memory_size // box_size  # Determine total boxes for the entire memory range
+
+global_read_counts = [0] * total_boxes
+global_write_counts = [0] * total_boxes
+
+# Initialize the main read_counts and write_counts for the initial viewable range
+read_counts = global_read_counts[:num_boxes]
+write_counts = global_write_counts[:num_boxes]
+
 root = tk.Tk()
+
+# Memory range label to show current section of memory
+memory_range_label = tk.Label(root, text="Memory Range: 0x0 - 0xFFFFF")
+memory_range_label.pack()
 
 canvas = tk.Canvas(root, width=canvas_width, height=canvas_height + 100, bg="white")
 canvas.pack()
 
+# Function to update the memory range label
+def update_memory_range_label(memory_start=None, memory_end=None):
+    if memory_start is None or memory_end is None:
+        memory_start = 0  # Default start
+        memory_end = num_boxes * box_size - 1  # Default end
+    memory_range_label.config(text=f"Memory Range: {hex(memory_start)} - {hex(memory_end)}")
+
 # Create the Reset button
 def reset_map():
-    global read_counts, write_counts
+    global read_counts, write_counts, box_size
+    box_size = memory_size // num_boxes  # Reset box size to the original full range
     read_counts = [0] * num_boxes
     write_counts = [0] * num_boxes
     update_colors()
+    update_memory_range_label()  # Update label after reset
 
 reset_button = tk.Button(root, text="Reset Map", command=reset_map)
 reset_button.pack()
 
-# Create the memory range slider
-def update_memory_range(val):
-    global box_size, read_counts, write_counts
-    new_range = int(val) * 1024 * 1024  # Convert MB to bytes
-    box_size = new_range // num_boxes  # Update box size based on new memory range
-    read_counts = [0] * num_boxes  # Reset read counts
-    write_counts = [0] * num_boxes  # Reset write counts
-    update_colors()  # Redraw the canvas
-
-memory_range_slider = tk.Scale(root, from_=1, to=16, orient="horizontal", label="Memory Range (MB)", command=update_memory_range)
-memory_range_slider.set(16)  # Set default value to 16 MB
-memory_range_slider.pack()
 # Initialize read and write counts for each box
 read_counts = [0] * num_boxes
 write_counts = [0] * num_boxes
 
-# Variables to manage selection area
-selection_rect = None
-start_x, start_y = None, None
+# Initialize the current memory range for zoom
+current_memory_start = 0
+current_memory_end = memory_size - 1
 
-# Function to start selecting an area
-def start_selection(event):
-    global start_x, start_y, selection_rect
-    start_x, start_y = event.x, event.y
-    if selection_rect:
-        canvas.delete(selection_rect)
-    selection_rect = canvas.create_rectangle(start_x, start_y, start_x, start_y, outline="red", dash=(4, 2))
+# Update read_counts and write_counts when zooming to the zoomed memory range
+def update_zoomed_counts():
+    global read_counts, write_counts
+    # Calculate the range of indexes in the global counts array for the zoomed range
+    start_index = int(current_memory_start / memory_size * len(global_read_counts))
+    end_index = start_index + num_boxes
 
-# Function to update the selection area as the user drags
-def update_selection(event):
-    global selection_rect
-    if selection_rect:
-        canvas.coords(selection_rect, start_x, start_y, event.x, event.y)
+    # Slice and pad to ensure we have exactly num_boxes elements
+    read_counts = global_read_counts[start_index:end_index]
+    write_counts = global_write_counts[start_index:end_index]
 
-# Function to finalize the selection and determine the new memory range
-def finalize_selection(event):
-    global box_size, read_counts, write_counts
-    if selection_rect:
-        x0, y0, x1, y1 = canvas.coords(selection_rect)
-        padding = 5
-        col_start = int((min(x0, x1) - padding) // ((canvas_width - 2 * padding) // grid_size))
-        col_end = int((max(x0, x1) - padding) // ((canvas_width - 2 * padding) // grid_size))
-        row_start = int((min(y0, y1) - padding) // ((canvas_height - 2 * padding) // grid_size))
-        row_end = int((max(y0, y1) - padding) // ((canvas_height - 2 * padding) // grid_size))
+    # If the sliced range is shorter than num_boxes, pad with zeros
+    read_counts += [0] * (num_boxes - len(read_counts))
+    write_counts += [0] * (num_boxes - len(write_counts))
 
-        selected_boxes = [row * grid_size + col for row in range(row_start, row_end + 1) for col in range(col_start, col_end + 1)
-                          if 0 <= row < grid_size and 0 <= col < grid_size]
+# Function to handle double-click on a box and zoom into that memory range
+def zoom_into_box(event):
+    global box_size, current_memory_start, current_memory_end
+    padding = 5
+    col = (event.x - padding) // ((canvas_width - 2 * padding) // grid_size)
+    row = (event.y - padding) // ((canvas_height - 2 * padding) // grid_size)
+    box_index = row * grid_size + col
+    
+    if 0 <= box_index < num_boxes:
+        # Calculate the memory range for the selected box within the current visible range
+        memory_range = current_memory_end - current_memory_start + 1
+        box_memory_size = memory_range // num_boxes
 
-        if selected_boxes:
-            new_range = len(selected_boxes) * box_size
-            box_size = new_range // num_boxes  # Update box size based on new memory range
-            read_counts = [0] * num_boxes  # Reset read counts
-            write_counts = [0] * num_boxes  # Reset write counts
-            update_colors()  # Redraw the canvas
+        # Determine the start and end of the new memory range based on the selected box
+        new_memory_start = current_memory_start + (box_index * box_memory_size)
+        new_memory_end = new_memory_start + box_memory_size - 1
 
-        # Remove the selection rectangle
-        canvas.delete(selection_rect)
+        # Update global memory range for subsequent zooms
+        current_memory_start, current_memory_end = new_memory_start, new_memory_end
 
-# Bind mouse events for selection
-canvas.bind("<ButtonPress-1>", start_selection)
-canvas.bind("<B1-Motion>", update_selection)
-canvas.bind("<ButtonRelease-1>", finalize_selection)
+        # Set new box size to reflect the zoomed-in range
+        box_size = max((new_memory_end - new_memory_start + 1) // num_boxes, 1)
+
+        # Update the displayed memory range label to focus on this box's range
+        update_memory_range_label(new_memory_start, new_memory_end)
+
+        # Update the read and write counts for the zoomed range
+        update_zoomed_counts()
+
+        # Redraw the grid based on the new memory range
+        draw_initial_boxes()
+
+# Bind double-click event to zoom into the clicked box
+canvas.bind("<Double-Button-1>", zoom_into_box)
 
 # Draw initial boxes on the canvas and keep track of them by tags
 box_tags = []
 
 def draw_initial_boxes():
+    canvas.delete("all")  # Clear existing boxes
     padding = 5  # 5 pixels of padding
     for i in range(num_boxes):
         row = i // grid_size
@@ -105,6 +125,10 @@ def draw_initial_boxes():
         box_tags.append(tag)
 
 draw_initial_boxes()
+update_memory_range_label()  # Initialize label
+
+# Remaining code for legend, box color updating, hover events, and log monitoring continues as before.
+
 
 # Draw legend
 def draw_legend():
@@ -134,7 +158,7 @@ def draw_legend():
 
 draw_legend()
 
-# Update the color of a box based on read/write counts
+# Function to update the color of a box based on read/write counts
 def update_box_color(index, max_accesses):
     read_count = read_counts[index]
     write_count = write_counts[index]
@@ -172,9 +196,12 @@ def on_hover(event):
     col = (event.x - padding) // ((canvas_width - 2 * padding) // grid_size)
     row = (event.y - padding) // ((canvas_height - 2 * padding) // grid_size)
     box_index = row * grid_size + col
-    if 0 <= box_index < num_boxes:
-        memory_range_start = box_index * box_size
-        memory_range_end = (box_index + 1) * box_size - 1
+    
+    if 0 <= box_index < num_boxes:  # Ensure box_index is within bounds
+        # Calculate the memory range for the current box in the zoomed range
+        memory_range_start = current_memory_start + box_index * box_size
+        memory_range_end = memory_range_start + box_size - 1
+        
         read_count = read_counts[box_index]
         write_count = write_counts[box_index]
         info_text = (f"Memory Range: {hex(memory_range_start)} - {hex(memory_range_end)}\n"
@@ -206,6 +233,7 @@ def update_colors():
         update_box_color(i, max_accesses)
     canvas.update()
 
+# Adjust monitor_log to check the bounds of the current counts
 def monitor_log():
     global last_read_position
     if os.path.exists(log_file_path):
@@ -226,18 +254,16 @@ def monitor_log():
                     line_count += 1
                     if line_count % 1000 == 0:
                         print(f"Processed {line_count} lines so far.")
-
                     try:
-                        # Adjusted to ignore lines that don't match the expected format
                         if not line.startswith("read") and not line.startswith("write"):
                             continue
 
                         # Split the line into expected parts
                         access_type, address_hex, _, value_hex = line.split(',')
                         address = int(address_hex, 16)
-                        box_index = address // box_size
+                        box_index = (address - current_memory_start) // box_size
 
-                        if box_index < num_boxes:
+                        if 0 <= box_index < num_boxes:
                             if access_type == 'read':
                                 read_counts[box_index] += 1
                             elif access_type == 'write':
