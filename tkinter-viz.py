@@ -46,19 +46,23 @@ def draw_legend():
     
     canvas.create_text(legend_x, legend_y, anchor="nw", text="Legend:", font=("Arial", 10, "bold"))
     
-    # Light blue for reads only
+    # Light blue to dark blue gradient for reads only
     canvas.create_rectangle(legend_x, legend_y + legend_spacing, legend_x + 15, legend_y + legend_spacing + 15, fill="#add8e6", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + legend_spacing, anchor="nw", text="Reads Only", font=("Arial", 10))
-    
-    # Dark blue for writes only
+    canvas.create_text(legend_x + 20, legend_y + legend_spacing, anchor="nw", text="Reads Only (Low)", font=("Arial", 10))
     canvas.create_rectangle(legend_x, legend_y + 2 * legend_spacing, legend_x + 15, legend_y + 2 * legend_spacing + 15, fill="#00008b", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + 2 * legend_spacing, anchor="nw", text="Writes Only", font=("Arial", 10))
+    canvas.create_text(legend_x + 20, legend_y + 2 * legend_spacing, anchor="nw", text="Reads Only (High)", font=("Arial", 10))
+    
+    # Light green to dark green gradient for writes only
+    canvas.create_rectangle(legend_x, legend_y + 3 * legend_spacing, legend_x + 15, legend_y + 3 * legend_spacing + 15, fill="#90ee90", outline="lightgray")
+    canvas.create_text(legend_x + 20, legend_y + 3 * legend_spacing, anchor="nw", text="Writes Only (Low)", font=("Arial", 10))
+    canvas.create_rectangle(legend_x, legend_y + 4 * legend_spacing, legend_x + 15, legend_y + 4 * legend_spacing + 15, fill="#006400", outline="lightgray")
+    canvas.create_text(legend_x + 20, legend_y + 4 * legend_spacing, anchor="nw", text="Writes Only (High)", font=("Arial", 10))
     
     # Yellow to red gradient for reads and writes
-    canvas.create_rectangle(legend_x, legend_y + 3 * legend_spacing, legend_x + 15, legend_y + 3 * legend_spacing + 15, fill="#ffff00", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + 3 * legend_spacing, anchor="nw", text="Reads and Writes (Low)", font=("Arial", 10))
-    canvas.create_rectangle(legend_x, legend_y + 4 * legend_spacing, legend_x + 15, legend_y + 4 * legend_spacing + 15, fill="#ff0000", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + 4 * legend_spacing, anchor="nw", text="Reads and Writes (High)", font=("Arial", 10))
+    canvas.create_rectangle(legend_x, legend_y + 5 * legend_spacing, legend_x + 15, legend_y + 5 * legend_spacing + 15, fill="#ffff00", outline="lightgray")
+    canvas.create_text(legend_x + 20, legend_y + 5 * legend_spacing, anchor="nw", text="Reads and Writes (Low)", font=("Arial", 10))
+    canvas.create_rectangle(legend_x, legend_y + 6 * legend_spacing, legend_x + 15, legend_y + 6 * legend_spacing + 15, fill="#ff0000", outline="lightgray")
+    canvas.create_text(legend_x + 20, legend_y + 6 * legend_spacing, anchor="nw", text="Reads and Writes (High)", font=("Arial", 10))
 
 draw_legend()
 
@@ -71,9 +75,19 @@ def update_box_color(index, max_accesses):
     if total_accesses == 0:
         color = "white"
     elif read_count > 0 and write_count == 0:
-        color = "#add8e6"  # Light blue for reads only
+        # Light blue to dark blue gradient for reads only
+        ratio = min(read_count / max_accesses, 1)  # Normalize ratio to be between 0 and 1
+        r = int((173 * (1 - ratio)) + (0 * ratio))
+        g = int((216 * (1 - ratio)) + (0 * ratio))
+        b = int((230 * (1 - ratio)) + (139 * ratio))
+        color = f"#{r:02x}{g:02x}{b:02x}"
     elif write_count > 0 and read_count == 0:
-        color = "#00008b"  # Dark blue for writes only
+        # Light green to dark green gradient for writes only
+        ratio = min(write_count / max_accesses, 1)  # Normalize ratio to be between 0 and 1
+        r = int((144 * (1 - ratio)) + (0 * ratio))
+        g = int((238 * (1 - ratio)) + (100 * ratio))
+        b = int((144 * (1 - ratio)) + (0 * ratio))
+        color = f"#{r:02x}{g:02x}{b:02x}"
     else:
         # Calculate color gradient from yellow to red based on total accesses relative to max_accesses
         ratio = min(total_accesses / max_accesses, 1)  # Normalize ratio to be between 0 and 1
