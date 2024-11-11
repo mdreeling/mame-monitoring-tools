@@ -10,14 +10,24 @@ canvas_width = 1010  # Add 5 pixels of padding on each side
 canvas_height = 1010  # Add 5 pixels of padding on each side
 box_size = memory_size // num_boxes
 
+root = tk.Tk()
+root.title("Memory Access Heatmap")
 # Initialize read and write counts for each box
 read_counts = [0] * num_boxes
 write_counts = [0] * num_boxes
 
-# Create the Tkinter window
-root = tk.Tk()
-root.title("Memory Access Heatmap")
-canvas = tk.Canvas(root, width=canvas_width, height=canvas_height + 100, bg="white")  # Extra height for legend
+# Create the Reset button
+def reset_map():
+    global read_counts, write_counts
+    read_counts = [0] * num_boxes
+    write_counts = [0] * num_boxes
+    update_colors()
+
+reset_button = tk.Button(root, text="Reset Map", command=reset_map)
+reset_button.pack()
+
+# Create the canvas
+canvas = tk.Canvas(root, width=canvas_width, height=canvas_height + 100, bg="white")
 canvas.pack()
 
 # Draw initial boxes on the canvas and keep track of them by tags
