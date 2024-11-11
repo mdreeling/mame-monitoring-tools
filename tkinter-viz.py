@@ -1,10 +1,9 @@
 import tkinter as tk
 import os
-import time
 
 # Define parameters for memory representation
 memory_size = 16 * 1024 * 1024  # 16 MB total memory
-num_boxes = 250  # Divide the memory map into 100 boxes
+num_boxes = 250  # Divide the memory map into 250 boxes
 canvas_width = 2000
 box_size = memory_size // num_boxes
 
@@ -30,13 +29,15 @@ def draw_initial_boxes():
 draw_initial_boxes()
 
 # Update the boxes with read/write colors temporarily
-def flash_box(index, color, duration=0.1):
+def flash_box(index, color, duration=100):
     x0 = index * (canvas_width // num_boxes)
     x1 = (index + 1) * (canvas_width // num_boxes)
     if color == 'yellow':
         canvas.create_rectangle(x0, 0, x1, 250, outline="black", fill=color, tags=f"box_{index}")
     elif color == 'green':
         canvas.create_rectangle(x0, 250, x1, 500, outline="black", fill=color, tags=f"box_{index}")
+    canvas.update()
+    root.after(duration, lambda: reset_box(index))
 
 # Reset the box to white after a delay
 def reset_box(index):
@@ -46,12 +47,13 @@ def reset_box(index):
     canvas.update()
 
 # Monitor the memory access log file for changes with roll-over detection
-log_file_path = "..\..\mame\memory_access.log"
+log_file_path = "../../mame/memory_access.log"
 last_read_position = 0
-update_interval = 0.1  # Configurable update interval in seconds
+update_interval = 100  # Configurable update interval in milliseconds
 flash_threshold = 25000  # Number of reads/writes before flashing
 
-while True:
+def monitor_log():
+    global last_read_position
     if os.path.exists(log_file_path):
         file_size = os.path.getsize(log_file_path)
 
@@ -86,18 +88,21 @@ while True:
                                 read_counts[box_index] += 1
                                 if read_counts[box_index] % flash_threshold == 0:
                                     flash_box(box_index, 'green')
-                                    root.after(100, lambda: reset_box(box_index))
                             elif access_type == 'write':
                                 write_counts[box_index] += 1
                                 if write_counts[box_index] % flash_threshold == 0:
                                     flash_box(box_index, 'yellow')
-                                    root.after(100, lambda: reset_box(box_index))
 
                     except ValueError as e:
                         print(f"Error processing line '{line}': {e}")
             last_read_position = log_file.tell()  # Update the position for the next read
             print("Visualization is up to date with the end of the file.")
 
-    # Update the GUI after processing
-    canvas.update()
-    time.sleep(update_interval)  # Configurable delay for visualization updates
+    # Schedule the next log check
+    root.after(update_interval, monitor_log)
+
+# Start monitoring the log
+monitor_log()
+
+# Run the Tkinter main loop
+root.mainloop()
