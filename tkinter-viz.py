@@ -11,10 +11,9 @@ canvas_height = 1010  # Add 5 pixels of padding on each side
 box_size = memory_size // num_boxes
 
 root = tk.Tk()
-root.title("Memory Access Heatmap")
-# Initialize read and write counts for each box
-read_counts = [0] * num_boxes
-write_counts = [0] * num_boxes
+
+canvas = tk.Canvas(root, width=canvas_width, height=canvas_height + 100, bg="white")
+canvas.pack()
 
 # Create the Reset button
 def reset_map():
@@ -26,9 +25,68 @@ def reset_map():
 reset_button = tk.Button(root, text="Reset Map", command=reset_map)
 reset_button.pack()
 
-# Create the canvas
-canvas = tk.Canvas(root, width=canvas_width, height=canvas_height + 100, bg="white")
-canvas.pack()
+# Create the memory range slider
+def update_memory_range(val):
+    global box_size, read_counts, write_counts
+    new_range = int(val) * 1024 * 1024  # Convert MB to bytes
+    box_size = new_range // num_boxes  # Update box size based on new memory range
+    read_counts = [0] * num_boxes  # Reset read counts
+    write_counts = [0] * num_boxes  # Reset write counts
+    update_colors()  # Redraw the canvas
+
+memory_range_slider = tk.Scale(root, from_=1, to=16, orient="horizontal", label="Memory Range (MB)", command=update_memory_range)
+memory_range_slider.set(16)  # Set default value to 16 MB
+memory_range_slider.pack()
+# Initialize read and write counts for each box
+read_counts = [0] * num_boxes
+write_counts = [0] * num_boxes
+
+# Variables to manage selection area
+selection_rect = None
+start_x, start_y = None, None
+
+# Function to start selecting an area
+def start_selection(event):
+    global start_x, start_y, selection_rect
+    start_x, start_y = event.x, event.y
+    if selection_rect:
+        canvas.delete(selection_rect)
+    selection_rect = canvas.create_rectangle(start_x, start_y, start_x, start_y, outline="red", dash=(4, 2))
+
+# Function to update the selection area as the user drags
+def update_selection(event):
+    global selection_rect
+    if selection_rect:
+        canvas.coords(selection_rect, start_x, start_y, event.x, event.y)
+
+# Function to finalize the selection and determine the new memory range
+def finalize_selection(event):
+    global box_size, read_counts, write_counts
+    if selection_rect:
+        x0, y0, x1, y1 = canvas.coords(selection_rect)
+        padding = 5
+        col_start = int((min(x0, x1) - padding) // ((canvas_width - 2 * padding) // grid_size))
+        col_end = int((max(x0, x1) - padding) // ((canvas_width - 2 * padding) // grid_size))
+        row_start = int((min(y0, y1) - padding) // ((canvas_height - 2 * padding) // grid_size))
+        row_end = int((max(y0, y1) - padding) // ((canvas_height - 2 * padding) // grid_size))
+
+        selected_boxes = [row * grid_size + col for row in range(row_start, row_end + 1) for col in range(col_start, col_end + 1)
+                          if 0 <= row < grid_size and 0 <= col < grid_size]
+
+        if selected_boxes:
+            new_range = len(selected_boxes) * box_size
+            box_size = new_range // num_boxes  # Update box size based on new memory range
+            read_counts = [0] * num_boxes  # Reset read counts
+            write_counts = [0] * num_boxes  # Reset write counts
+            update_colors()  # Redraw the canvas
+
+        # Remove the selection rectangle
+        canvas.delete(selection_rect)
+
+# Bind mouse events for selection
+canvas.bind("<ButtonPress-1>", start_selection)
+canvas.bind("<B1-Motion>", update_selection)
+canvas.bind("<ButtonRelease-1>", finalize_selection)
 
 # Draw initial boxes on the canvas and keep track of them by tags
 box_tags = []
