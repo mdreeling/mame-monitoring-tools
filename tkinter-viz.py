@@ -325,9 +325,13 @@ def update_colors():
         update_box_color(i, max_accesses)
     canvas.update()
 
-# Adjust monitor_log to check the bounds of the current counts
+# Initialize frame-related variables
+current_frame = 0
+current_frame_operations = 0
+
+# Function to monitor the log file for memory accesses and update frame information
 def monitor_log():
-    global last_read_position
+    global last_read_position, current_frame, current_frame_operations
     if os.path.exists(log_file_path):
         file_size = os.path.getsize(log_file_path)
 
@@ -338,32 +342,56 @@ def monitor_log():
 
         with open(log_file_path, "r") as log_file:
             log_file.seek(last_read_position)  # Start from where we left off
-            line_count = 0
             for line in log_file:
                 line = line.strip()
                 if line:
-                    # Increment line count and print every 1000 lines processed
-                    line_count += 1
-                    if line_count % 1000 == 0:
-                        print(f"Processed {line_count} lines so far.")
-                    try:
-                        if not line.startswith("read") and not line.startswith("write"):
-                            continue
+                    parts = line.split(',')
 
-                        # Split the line into expected parts
-                        access_type, address_hex, _, value_hex = line.split(',')
-                        address = int(address_hex, 16)
-                        box_index = (address - current_memory_start) // box_size
+                    # Only parse lines with exactly 6 parts
+                    if len(parts) == 6:
+                        try:
+                            # Extract frame, access type, address, and value
+                            new_frame = int(parts[1])  # Frame number is always present
+                            access_type = parts[2]
+                            address_hex = parts[3]
+                            value_hex = parts[5]
+                            
+                            # Debugging print to verify the frame number
+                            # print(f"Extracted Frame from Log: {new_frame}")
 
-                        if 0 <= box_index < num_boxes:
-                            if access_type == 'read':
-                                read_counts[box_index] += 1
-                            elif access_type == 'write':
-                                write_counts[box_index] += 1
+                            # If the frame changes, print the previous frame and its operation count
+                            if new_frame != current_frame:
+                                if current_frame_operations > 0:
+                                    print(f"Frame {current_frame} ({current_frame_operations} operations)")
 
-                    except ValueError as e:
-                        print(f"Error processing line '{line}': {e}")
-            last_read_position = log_file.tell()  # Update the position for the next read
+                                # Update to the new frame and reset the operation counter
+                                current_frame = new_frame
+                                current_frame_operations = 0
+
+                            # Increment the operation counter for the current frame
+                            current_frame_operations += 1
+
+                            # Process the memory access event
+                            address = int(address_hex, 16)
+                            value = int(value_hex, 16)
+                            box_index = (address - current_memory_start) // box_size
+
+                            if 0 <= box_index < num_boxes:
+                                if access_type == 'read':
+                                    read_counts[box_index] += 1
+                                elif access_type == 'write':
+                                    write_counts[box_index] += 1
+
+                        except ValueError as e:
+                            print(f"Error processing line '{line}': {e}")
+
+            # Print the last frame's operation count after the loop ends
+            if current_frame_operations > 0:
+                print(f"Frame {current_frame} ({current_frame_operations} operations)")
+
+            # Update the last_read_position accurately to the end of the current file read
+            last_read_position = log_file.tell()  
+            print(f"Updated read position: {last_read_position}")
             print("Visualization is up to date with the end of the file.")
 
     # Update all box colors at once to reduce canvas update frequency

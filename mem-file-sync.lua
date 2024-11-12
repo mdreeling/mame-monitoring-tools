@@ -31,6 +31,12 @@ if mem_space == nil then
     error(string.format("Program memory space for device %s not found", main_cpu))
 end
 
+-- Get the screen device to access the frame number
+local screen = manager.machine.screens["screen"]
+if screen == nil then
+    error("No screen device found")
+end
+
 -- Function to write to the log and handle log rollover
 local write_buffer = {}
 local buffer_size = 5000  -- Buffer size for batching log writes
@@ -64,12 +70,14 @@ end
 
 -- Callback function for memory write
 local function on_memory_write(address, value)
-    write_to_log(string.format("write,%06X,value,%02X\n", address, value))
+    local current_frame1 = screen:frame_number()
+    write_to_log(string.format("frame,%d,write,%06X,value,%02X\n", current_frame1, address, value))
 end
 
 -- Callback function for memory read
 local function on_memory_read(address, value)
-    write_to_log(string.format("read,%06X,value,%02X\n", address, value))
+    local current_frame1 = screen:frame_number()
+    write_to_log(string.format("frame,%d,read,%06X,value,%02X\n", current_frame1, address, value))
 end
 
 -- Function to set memory taps
@@ -83,6 +91,11 @@ set_memory_taps()
 
 -- Register a frame done callback to manage log buffer flushes and reinstall taps if necessary
 emu.register_frame_done(function()
+
+    -- Skip processing if the emulator is paused
+    if manager.machine.paused then
+        return
+    end
 
     -- Flush the buffer to the log file every frame
     if #write_buffer > 0 then
