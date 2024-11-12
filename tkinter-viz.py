@@ -106,7 +106,6 @@ def zoom_into_box(event):
 
         # Set new box size to reflect the zoomed-in range
         box_size = max((new_memory_end - new_memory_start + 1) // num_boxes, 1)
-
         # Update the displayed memory range label to focus on this box's range
         update_memory_range_label(new_memory_start, new_memory_end)
 
@@ -133,68 +132,6 @@ def update_zoomed_counts():
     # If the sliced range is shorter than num_boxes, pad with zeros
     read_counts += [0] * (num_boxes - len(read_counts))
     write_counts += [0] * (num_boxes - len(write_counts))
-# Initialize the Zoom Out button but keep it hidden initially
-zoom_out_button = tk.Button(root, text="Zoom Out", command=lambda: zoom_out())
-zoom_out_button.pack()
-zoom_out_button.place_forget()  # Hide the button initially
-
-# Function to zoom out and reset the view to the original memory range
-def zoom_out():
-    global current_memory_start, current_memory_end, box_size, read_counts, write_counts
-
-    # Reset to the original memory range
-    current_memory_start = 0
-    current_memory_end = memory_size - 1
-    box_size = memory_size // num_boxes
-
-    # Update the main read_counts and write_counts to the full range
-    read_counts = global_read_counts[:num_boxes]
-    write_counts = global_write_counts[:num_boxes]
-
-    # Hide the Zoom Out button
-    zoom_out_button.place_forget()
-
-    # Update the displayed memory range label
-    update_memory_range_label(current_memory_start, current_memory_end)
-
-    # Redraw the initial grid
-    draw_initial_boxes()
-
-# Update the zoom function to show the Zoom Out button when zooming in
-def zoom_into_box(event):
-    global box_size, current_memory_start, current_memory_end
-    padding = 5
-    col = (event.x - padding) // ((canvas_width - 2 * padding) // grid_size)
-    row = (event.y - padding) // ((canvas_height - 2 * padding) // grid_size)
-    box_index = row * grid_size + col
-    
-    if 0 <= box_index < num_boxes:
-        # Calculate the memory range for the selected box within the current visible range
-        memory_range = current_memory_end - current_memory_start + 1
-        box_memory_size = memory_range // num_boxes
-
-        # Determine the start and end of the new memory range based on the selected box
-        new_memory_start = current_memory_start + (box_index * box_memory_size)
-        new_memory_end = new_memory_start + box_memory_size - 1
-
-        # Update global memory range for subsequent zooms
-        current_memory_start, current_memory_end = new_memory_start, new_memory_end
-
-        # Set new box size to reflect the zoomed-in range
-        box_size = max((new_memory_end - new_memory_start + 1) // num_boxes, 1)
-
-        # Update the displayed memory range label to focus on this box's range
-        update_memory_range_label(new_memory_start, new_memory_end)
-
-        # Update the read and write counts for the zoomed range
-        update_zoomed_counts()
-
-        # Redraw the grid based on the new memory range
-        draw_initial_boxes()
-
-        # Show the Zoom Out button after zooming in
-        zoom_out_button.place(x=10, y=canvas_height + 50)
-
 
 # Bind double-click event to zoom into the clicked box
 canvas.bind("<Double-Button-1>", zoom_into_box)
@@ -307,7 +244,7 @@ def on_leave(event):
 
 canvas.bind("<Motion>", on_hover)
 canvas.bind("<Leave>", on_leave)
-
+ 
 # Monitor the memory access log file for changes with roll-over detection
 log_file_path = "../../mame/memory_access.log"
 last_read_position = 0
@@ -325,83 +262,124 @@ def update_colors():
         update_box_color(i, max_accesses)
     canvas.update()
 
-# Initialize frame-related variables
+# Frame-by-frame mode implementation
+# Track frame-specific memory access data and add a toggle button and slider
+
+# Frame data to track specific frame memory accesses
+frame_data = {}  # Dictionary to store read/write counts per frame for frame-by-frame mode
+
+# Frame-by-frame mode state
+frame_by_frame_mode = False
 current_frame = 0
-current_frame_operations = 0
+max_frame = 0
+
+# Frame-by-frame slider
+frame_slider = tk.Scale(root, from_=0, to=0, orient="horizontal", label="Frame", command=lambda val: show_frame(int(val)))
+frame_slider.pack_forget()  # Hide initially
+
+# Button to toggle frame-by-frame mode
+def toggle_frame_by_frame_mode():
+    global frame_by_frame_mode
+    frame_by_frame_mode = not frame_by_frame_mode
+    
+    if frame_by_frame_mode:
+        # Stop monitoring the file and show the slider
+        frame_slider.pack()
+        frame_slider.config(to=max_frame)
+        monitor_log(False)  # Stop continuous monitoring
+    else:
+        # Hide the slider and resume normal mode
+        frame_slider.pack_forget()
+        monitor_log(True)  # Resume continuous monitoring
+
+frame_by_frame_button = tk.Button(root, text="Frame by Frame Mode", command=toggle_frame_by_frame_mode)
+frame_by_frame_button.pack()
+
+# Function to show a specific frame
+def show_frame(frame):
+    global read_counts, write_counts
+    if frame in frame_data:
+        read_counts, write_counts = frame_data[frame]
+        update_colors()
+
+# Update read_counts and write_counts when zooming to the zoomed memory range
+def update_zoomed_counts():
+    global read_counts, write_counts
+    # Calculate the range of indexes in the global counts array for the zoomed range
+    start_index = int(current_memory_start / memory_size * len(global_read_counts))
+    end_index = start_index + num_boxes
+
+    # Slice and pad to ensure we have exactly num_boxes elements
+    read_counts = global_read_counts[start_index:end_index]
+    write_counts = global_write_counts[start_index:end_index]
+
+    # If the sliced range is shorter than num_boxes, pad with zeros
+    read_counts += [0] * (num_boxes - len(read_counts))
+    write_counts += [0] * (num_boxes - len(write_counts))
 
 # Function to monitor the log file for memory accesses and update frame information
-def monitor_log():
-    global last_read_position, current_frame, current_frame_operations
-    if os.path.exists(log_file_path):
-        file_size = os.path.getsize(log_file_path)
+def monitor_log(continue_monitoring=True):
+    if continue_monitoring:
+        global read_counts, write_counts, last_read_position, current_frame, current_frame_operations, max_frame
+        if os.path.exists(log_file_path):
+            file_size = os.path.getsize(log_file_path)
 
-        # Handle file rollover by checking if the current read position exceeds the file size
-        if last_read_position > file_size:
-            print("Log rollover detected, resetting read position.")
-            last_read_position = 0
+            # Handle file rollover by checking if the current read position exceeds the file size
+            if last_read_position > file_size:
+                print("Log rollover detected, resetting read position.")
+                last_read_position = 0
 
-        with open(log_file_path, "r") as log_file:
-            log_file.seek(last_read_position)  # Start from where we left off
-            for line in log_file:
-                line = line.strip()
-                if line:
-                    parts = line.split(',')
+            with open(log_file_path, "r") as log_file:
+                log_file.seek(last_read_position)  # Start from where we left off
+                for line in log_file:
+                    line = line.strip()
+                    if line:
+                        parts = line.split(',')
 
-                    # Only parse lines with exactly 6 parts
-                    if len(parts) == 6:
-                        try:
-                            # Extract frame, access type, address, and value
-                            new_frame = int(parts[1])  # Frame number is always present
-                            access_type = parts[2]
-                            address_hex = parts[3]
-                            value_hex = parts[5]
-                            
-                            # Debugging print to verify the frame number
-                            # print(f"Extracted Frame from Log: {new_frame}")
+                        # Only parse lines with exactly 6 parts
+                        if len(parts) == 6:
+                            try:
+                                # Extract frame, access type, address, and value
+                                new_frame = int(parts[1])  # Frame number is always present
+                                access_type = parts[2]
+                                address_hex = parts[3]
+                                value_hex = parts[5]
 
-                            # If the frame changes, print the previous frame and its operation count
-                            if new_frame != current_frame:
-                                if current_frame_operations > 0:
-                                    print(f"Frame {current_frame} ({current_frame_operations} operations)")
+                                # Track frame-specific data for frame-by-frame mode
+                                if new_frame != current_frame:
+                                    # Store the current frame data before switching to the new frame
+                                    frame_data[current_frame] = (read_counts[:], write_counts[:])
+                                    current_frame = new_frame
+                                    max_frame = max(max_frame, new_frame)
+                                    frame_slider.config(to=max_frame)
 
-                                # Update to the new frame and reset the operation counter
-                                current_frame = new_frame
-                                current_frame_operations = 0
+                                    # Reset read and write counts for the new frame
+                                    read_counts = [0] * num_boxes
+                                    write_counts = [0] * num_boxes
 
-                            # Increment the operation counter for the current frame
-                            current_frame_operations += 1
+                                # Process the memory access event
+                                address = int(address_hex, 16)
+                                value = int(value_hex, 16)
+                                box_index = (address - current_memory_start) // box_size
 
-                            # Process the memory access event
-                            address = int(address_hex, 16)
-                            value = int(value_hex, 16)
-                            box_index = (address - current_memory_start) // box_size
+                                if 0 <= box_index < num_boxes:
+                                    if access_type == 'read':
+                                        read_counts[box_index] += 1
+                                    elif access_type == 'write':
+                                        write_counts[box_index] += 1
 
-                            if 0 <= box_index < num_boxes:
-                                if access_type == 'read':
-                                    read_counts[box_index] += 1
-                                elif access_type == 'write':
-                                    write_counts[box_index] += 1
+                            except ValueError as e:
+                                print(f"Error processing line '{line}': {e}")
 
-                        except ValueError as e:
-                            print(f"Error processing line '{line}': {e}")
+                last_read_position = log_file.tell()  # Update the position for the next read
+                print("Visualization is up to date with the end of the file.")
 
-            # Print the last frame's operation count after the loop ends
-            if current_frame_operations > 0:
-                print(f"Frame {current_frame} ({current_frame_operations} operations)")
+        # Update colors for the continuous mode
+        update_colors()
 
-            # Update the last_read_position accurately to the end of the current file read
-            last_read_position = log_file.tell()  
-            print(f"Updated read position: {last_read_position}")
-            print("Visualization is up to date with the end of the file.")
-
-    # Update all box colors at once to reduce canvas update frequency
-    update_colors()
-
-    # Schedule the next log check
-    root.after(update_interval, monitor_log)
-
-# Start monitoring the log
-monitor_log()
+        # Schedule the next log check
+        root.after(update_interval, lambda: monitor_log(continue_monitoring))
 
 # Run the Tkinter main loop
+monitor_log(True)
 root.mainloop()
