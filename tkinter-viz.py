@@ -189,7 +189,7 @@ current_colors = ["white"] * num_boxes
 # For flashing indicators
 prev_read_counts = [0] * num_boxes
 prev_write_counts = [0] * num_boxes
-threshold = 1000  # Number of reads/writes to trigger flashing
+threshold = 1  # Number of reads/writes to trigger flashing
 
 def precompute_gradients():
     max_steps = 100  # Define a reasonable number of gradient levels
