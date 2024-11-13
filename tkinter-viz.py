@@ -400,13 +400,13 @@ def monitor_log():
                         parts = line.split(',')
 
                         # Only parse lines with exactly 6 parts
-                        if len(parts) == 6:
+                        if len(parts) == 7:
                             try:
                                 # Extract frame, access type, address, and value
-                                new_frame = int(parts[1])  # Frame number is always present
-                                access_type = parts[2]
-                                address_hex = parts[3]
-                                value_hex = parts[5]
+                                new_frame = int(parts[0])  # Frame number is always present
+                                access_type = parts[1]
+                                address_hex = parts[2]
+                                value_hex = parts[3]
 
                                 if current_frame == 0:
                                     frame_slider.config(from_=new_frame)
@@ -430,9 +430,9 @@ def monitor_log():
                                 box_index = (address - current_memory_start) // box_size
 
                                 if 0 <= box_index < num_boxes:
-                                    if access_type == 'read':
+                                    if access_type == 'R':
                                         read_counts[box_index] += 1
-                                    elif access_type == 'write':
+                                    elif access_type == 'W':
                                         write_counts[box_index] += 1
 
                             except ValueError as e:

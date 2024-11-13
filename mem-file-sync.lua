@@ -9,26 +9,26 @@ if log_file == nil then
     error(string.format("Failed to open log file at path: %s. Please check the path and permissions.", log_file_path))
 end
 
-local main_cpu = nil
-
+local main_cpu_name = nil
 -- Identify the CPU automatically
 for device_name, device in pairs(manager.machine.devices) do
     if device_name:find("cpu") then
-        main_cpu = device_name
-        print(string.format("Using device: %s", main_cpu))  -- Print to console instead of logging to file
+        main_cpu_name = device_name
+        print(string.format("Using device: %s", main_cpu_name))  -- Print to console instead of logging to file
         break
     end
 end
 
-if main_cpu == nil then
+if main_cpu_name == nil then
     error("No CPU found for memory access")
 end
 
 -- Get the program memory space for the identified CPU
-local mem_space = manager.machine.devices[main_cpu].spaces["program"]
+local main_cpu = manager.machine.devices[main_cpu_name]
+local mem_space = manager.machine.devices[main_cpu_name].spaces["program"]
 
 if mem_space == nil then
-    error(string.format("Program memory space for device %s not found", main_cpu))
+    error(string.format("Program memory space for device %s not found", main_cpu_name))
 end
 
 -- Get the screen device to access the frame number
@@ -68,16 +68,56 @@ local function write_to_log(data)
     end
 end
 
+-- Function to determine size based on mem_mask
+local function determine_size(mem_mask)
+    local size = 0
+    -- Iterate over each byte in the mask to determine the size
+    while mem_mask > 0 do
+        if (mem_mask & 0xFF) ~= 0 then
+            size = size + 1
+        end
+        mem_mask = mem_mask >> 8
+    end
+    return size
+end
+
 -- Callback function for memory write
-local function on_memory_write(address, value)
+local function on_memory_write(address, value, mem_mask)
     local current_frame1 = screen:frame_number()
-    write_to_log(string.format("frame,%d,write,%06X,value,%02X\n", current_frame1, address, value))
+    local pc = main_cpu.state["CURPC"].value
+    local size = determine_size(mem_mask)
+    --local instruction = cpu.disassemble(pc)
+    local old_value = 0 --mem_space:read_u8(offset)  -- Assuming an 8-bit read before writing
+    local log_entry = string.format(
+        "%d,W,%X,%X,%d,%X,%X",
+        current_frame1, address, value, size, pc, mem_mask
+    )
+    write_to_log(log_entry .. "\n")
 end
 
 -- Callback function for memory read
-local function on_memory_read(address, value)
+local function on_memory_read(address, value, mem_mask)
+
+    local size = determine_size(mem_mask)
     local current_frame1 = screen:frame_number()
-    write_to_log(string.format("frame,%d,read,%06X,value,%02X\n", current_frame1, address, value))
+    local pc = main_cpu.state["CURPC"].value
+
+    --local instruction = main_cpu.disassemble(pc)
+    --rint("4")
+    --print(string.format("4-DEBUG: frame=%s, offset=%s, value=%s, size=%s, pc=%s, mem_mask=%X", tostring(current_frame1), tostring(address), tostring(value), tostring(size), tostring(pc), mem_mask))
+
+    local old_value = 0 -- mem_space:read_u8(address)  -- Assuming an 8-bit read
+    --print(string.format("5-DEBUG: frame=%d, offset=%X, value=%X, size=%d, pc=%X, old_value=%d, mem_mask=%X", current_frame1, address, value, size, pc, old_value, mem_mask))
+
+    --print("5")
+
+    local log_entry = string.format(
+        "%d,R,%X,%X,%d,%X,%X",
+        current_frame1, address, value, size, pc, mem_mask
+    )
+
+    write_to_log(log_entry .. "\n")
+
 end
 
 -- Function to set memory taps
