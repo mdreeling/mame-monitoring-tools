@@ -186,6 +186,11 @@ def draw_legend():
 draw_legend()
 current_colors = ["white"] * num_boxes
 
+# For flashing indicators
+prev_read_counts = [0] * num_boxes
+prev_write_counts = [0] * num_boxes
+threshold = 1000  # Number of reads/writes to trigger flashing
+
 def precompute_gradients():
     max_steps = 100  # Define a reasonable number of gradient levels
     read_colors = []
@@ -213,43 +218,67 @@ def update_box_colors():
     if max_accesses == 0:
         max_accesses = 1  # Avoid division by zero
 
-    update_operations = []  # List to batch canvas updates
+    update_operations = []
     for i in range(num_boxes):
         read_count = read_counts[i]
         write_count = write_counts[i]
         total_accesses = read_count + write_count
 
-        max_steps = 100  # Corresponds to the number of gradient levels precomputed
+        max_steps = 100
         if total_accesses == 0:
             color = "white"
         elif read_count > 0 and write_count == 0:
-            # Use precomputed read gradient
             ratio_index = min(int((read_count / max_accesses) * (max_steps - 1)), max_steps - 1)
             color = read_gradient[ratio_index]
         elif write_count > 0 and read_count == 0:
-            # Use precomputed write gradient
             ratio_index = min(int((write_count / max_accesses) * (max_steps - 1)), max_steps - 1)
             color = write_gradient[ratio_index]
         else:
-            # Calculate color gradient from yellow to red based on total accesses relative to max_accesses
-            ratio = min(total_accesses / max_accesses, 1)  # Normalize ratio to be between 0 and 1
-            hue = (1 - ratio) * 0.15  # Yellow to red in HSV
+            ratio = min(total_accesses / max_accesses, 1)
+            hue = (1 - ratio) * 0.15
             r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
             color = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
 
-        # Append the operation to batch updates
-        # Check if the current color is different from the new color
+        # Batch updates to reduce individual itemconfig calls
         if current_colors[i] != color:
-            # Update the canvas only if the color is different
-            canvas.itemconfig(box_tags[i], fill=color)
-            current_colors[i] = color  # Update the current color in the list
             update_operations.append((box_tags[i], color))
+            current_colors[i] = color
 
-    # Execute all update operations at once
+        # Calculate read/write difference for flashing
+        read_diff = read_counts[i] - prev_read_counts[i]
+        write_diff = write_counts[i] - prev_write_counts[i]
+
+        # Update the previous counts for the next cycle
+        prev_read_counts[i] = read_count
+        prev_write_counts[i] = write_count
+
+        if read_diff > threshold or write_diff > threshold:
+            flash_x(i)
+
     for tag, color in update_operations:
         canvas.itemconfig(tag, fill=color)
 
     canvas.update()  # Finally update the canvas
+
+def flash_x(index):
+    # Determine the coordinates for the box
+    row = index // grid_size
+    col = index % grid_size
+    padding = 5
+    box_width = (canvas_width - 2 * padding) // grid_size
+    box_height = (canvas_height - 2 * padding) // grid_size
+    x0 = padding + col * box_width
+    y0 = padding + row * box_height
+    x1 = x0 + box_width
+    y1 = y0 + box_height
+
+    # Draw the yellow "X"
+    x_tag = f"flash_x_{index}"
+    line1 = canvas.create_line(x0, y0, x1, y1, fill="yellow", width=2, tags=x_tag)
+    line2 = canvas.create_line(x0, y1, x1, y0, fill="yellow", width=2, tags=x_tag)
+
+    # Remove the "X" after a short delay to create a flashing effect
+    canvas.after(300, lambda: canvas.delete(x_tag))
 
 
 # Display memory information when hovering over a box

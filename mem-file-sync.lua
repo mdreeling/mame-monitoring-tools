@@ -1,5 +1,5 @@
 local log_file_path = "memory_access.log"
-local max_log_size = 50 * 1024 * 1024  -- 50 MB
+local max_log_size = 500 * 1024 * 1024  -- 50 MB
 local frame_counter = 0
 local delay_frames = 60  -- 65 seconds at 60 FPS
 
@@ -39,7 +39,7 @@ end
 
 -- Function to write to the log and handle log rollover
 local write_buffer = {}
-local buffer_size = 5000  -- Buffer size for batching log writes
+local buffer_size = 50000  -- Buffer size for batching log writes
 
 local function write_to_log(data)
     if log_file == nil then
@@ -50,7 +50,7 @@ local function write_to_log(data)
         log_file:write(table.concat(write_buffer))
         write_buffer = {}  -- Clear buffer after writing
     end
-    if frame_counter % 60 == 0 then
+    if frame_counter % 6000 == 0 then
         log_file:flush()
     end
 
@@ -77,7 +77,7 @@ end
 -- Callback function for memory read
 local function on_memory_read(address, value)
     local current_frame1 = screen:frame_number()
-    write_to_log(string.format("frame,%d,read,%06X,value,%02X\n", current_frame1, address, value))
+    --write_to_log(string.format("frame,%d,read,%06X,value,%02X\n", current_frame1, address, value))
 end
 
 -- Function to set memory taps
