@@ -273,20 +273,24 @@ max_frame = 0
 frame_slider = tk.Scale(root, from_=0, to=0, orient="horizontal", label="Frame", command=lambda val: show_frame(int(val)))
 frame_slider.pack_forget()  # Hide initially
 
+continue_monitoring = True
+
 # Button to toggle frame-by-frame mode
 def toggle_frame_by_frame_mode():
-    global frame_by_frame_mode
+    global frame_by_frame_mode, continue_monitoring
     frame_by_frame_mode = not frame_by_frame_mode
     
     if frame_by_frame_mode:
         # Stop monitoring the file and show the slider
         frame_slider.pack()
         frame_slider.config(to=max_frame)
-        monitor_log(False)  # Stop continuous monitoring
+        continue_monitoring = False  # Stop continuous monitoring
+        print("Stopping and moving to Frame-By-Frame mode")
     else:
         # Hide the slider and resume normal mode
         frame_slider.pack_forget()
-        monitor_log(True)  # Resume continuous monitoring
+        continue_monitoring = True  # Resume continuous monitoring
+        print("Resuming reading memory activity...")
 
 frame_by_frame_button = tk.Button(root, text="Frame by Frame Mode", command=toggle_frame_by_frame_mode)
 frame_by_frame_button.pack()
@@ -300,9 +304,9 @@ def show_frame(frame):
 
 # Function to monitor the log file for memory accesses and update frame information
 # noinspection PyTypeChecker
-def monitor_log(continue_monitoring=True):
+def monitor_log():
+    global read_counts, write_counts, last_read_position, current_frame, current_frame_operations, max_frame, continue_monitoring
     if continue_monitoring:
-        global read_counts, write_counts, last_read_position, current_frame, current_frame_operations, max_frame
         if os.path.exists(log_file_path):
             file_size = os.path.getsize(log_file_path)
 
@@ -337,6 +341,7 @@ def monitor_log(continue_monitoring=True):
                                     max_frame = max(max_frame, new_frame)
                                     frame_slider.config(to=max_frame)
 
+                                if not continue_monitoring:
                                     # Reset read and write counts for the new frame
                                     read_counts = [0] * num_boxes
                                     write_counts = [0] * num_boxes
@@ -363,8 +368,8 @@ def monitor_log(continue_monitoring=True):
         update_colors()
 
         # Schedule the next log check
-        root.after(update_interval, lambda: monitor_log(continue_monitoring))
+    root.after(update_interval, lambda: monitor_log())
 
 # Run the Tkinter main loop
-monitor_log(True)
+monitor_log()
 root.mainloop()
