@@ -1,6 +1,7 @@
 import tkinter as tk
 import os
 import colorsys
+import time
 
 # Define parameters for memory representation
 memory_size = 16 * 1024 * 1024  # 16 MB total memory
@@ -43,7 +44,7 @@ def reset_map():
     box_size = memory_size // num_boxes  # Reset box size to the original full range
     read_counts = [0] * num_boxes
     write_counts = [0] * num_boxes
-    update_colors()
+    update_box_colors()
     update_memory_range_label()  # Update label after reset
 
 reset_button = tk.Button(root, text="Reset Map", command=reset_map)
@@ -136,6 +137,7 @@ canvas.bind("<Double-Button-1>", zoom_into_box)
 box_tags = []
 
 def draw_initial_boxes():
+    print("drawing initial boxes")
     canvas.delete("all")  # Clear existing boxes
     padding = 5  # 5 pixels of padding
     for i in range(num_boxes):
@@ -182,38 +184,73 @@ def draw_legend():
     canvas.create_text(legend_x + 20, legend_y + 6 * legend_spacing, anchor="nw", text="Reads and Writes (High)", font=("Arial", 10))
 
 draw_legend()
+current_colors = ["white"] * num_boxes
 
-# Function to update the color of a box based on read/write counts
-def update_box_color(index, max_accesses):
-    read_count = read_counts[index]
-    write_count = write_counts[index]
-    total_accesses = read_count + write_count
-
-    if total_accesses == 0:
-        color = "white"
-    elif read_count > 0 and write_count == 0:
-        # Light blue to dark blue gradient for reads only
-        ratio = min(read_count / max_accesses, 1)  # Normalize ratio to be between 0 and 1
+def precompute_gradients():
+    max_steps = 100  # Define a reasonable number of gradient levels
+    read_colors = []
+    write_colors = []
+    for i in range(max_steps):
+        ratio = i / (max_steps - 1)
+        # Precompute read-only colors (light blue to dark blue)
         r = int((173 * (1 - ratio)) + (0 * ratio))
         g = int((216 * (1 - ratio)) + (0 * ratio))
         b = int((230 * (1 - ratio)) + (139 * ratio))
-        color = f"#{r:02x}{g:02x}{b:02x}"
-    elif write_count > 0 and read_count == 0:
-        # Light green to dark green gradient for writes only
-        ratio = min(write_count / max_accesses, 1)  # Normalize ratio to be between 0 and 1
+        read_colors.append(f"#{r:02x}{g:02x}{b:02x}")
+
+        # Precompute write-only colors (light green to dark green)
         r = int((144 * (1 - ratio)) + (0 * ratio))
         g = int((238 * (1 - ratio)) + (100 * ratio))
         b = int((144 * (1 - ratio)) + (0 * ratio))
-        color = f"#{r:02x}{g:02x}{b:02x}"
-    else:
-        # Calculate color gradient from yellow to red based on total accesses relative to max_accesses
-        ratio = min(total_accesses / max_accesses, 1)  # Normalize ratio to be between 0 and 1
-        hue = (1 - ratio) * 0.15  # Yellow to red in HSV
-        r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
-        color = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+        write_colors.append(f"#{r:02x}{g:02x}{b:02x}")
 
-    # Update the color of the existing rectangle
-    canvas.itemconfig(box_tags[index], fill=color)
+    return read_colors, write_colors
+
+read_gradient, write_gradient = precompute_gradients()
+
+def update_box_colors():
+    max_accesses = max(read_counts[i] + write_counts[i] for i in range(num_boxes))
+    if max_accesses == 0:
+        max_accesses = 1  # Avoid division by zero
+
+    update_operations = []  # List to batch canvas updates
+    for i in range(num_boxes):
+        read_count = read_counts[i]
+        write_count = write_counts[i]
+        total_accesses = read_count + write_count
+
+        max_steps = 100  # Corresponds to the number of gradient levels precomputed
+        if total_accesses == 0:
+            color = "white"
+        elif read_count > 0 and write_count == 0:
+            # Use precomputed read gradient
+            ratio_index = min(int((read_count / max_accesses) * (max_steps - 1)), max_steps - 1)
+            color = read_gradient[ratio_index]
+        elif write_count > 0 and read_count == 0:
+            # Use precomputed write gradient
+            ratio_index = min(int((write_count / max_accesses) * (max_steps - 1)), max_steps - 1)
+            color = write_gradient[ratio_index]
+        else:
+            # Calculate color gradient from yellow to red based on total accesses relative to max_accesses
+            ratio = min(total_accesses / max_accesses, 1)  # Normalize ratio to be between 0 and 1
+            hue = (1 - ratio) * 0.15  # Yellow to red in HSV
+            r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
+            color = f"#{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+
+        # Append the operation to batch updates
+        # Check if the current color is different from the new color
+        if current_colors[i] != color:
+            # Update the canvas only if the color is different
+            canvas.itemconfig(box_tags[i], fill=color)
+            current_colors[i] = color  # Update the current color in the list
+            update_operations.append((box_tags[i], color))
+
+    # Execute all update operations at once
+    for tag, color in update_operations:
+        canvas.itemconfig(tag, fill=color)
+
+    canvas.update()  # Finally update the canvas
+
 
 # Display memory information when hovering over a box
 def on_hover(event):
@@ -248,15 +285,6 @@ update_interval = 100  # Configurable update interval in milliseconds
 
 # Cache colors for reuse
 gradient_cache = {}
-
-# Optimized update function to reduce canvas redraw frequency
-def update_colors():
-    max_accesses = max(read_counts[i] + write_counts[i] for i in range(num_boxes))
-    if max_accesses == 0:
-        max_accesses = 1  # Avoid division by zero
-    for i in range(num_boxes):
-        update_box_color(i, max_accesses)
-    canvas.update()
 
 # Frame-by-frame mode implementation
 # Track frame-specific memory access data and add a toggle button and slider
@@ -295,12 +323,32 @@ def toggle_frame_by_frame_mode():
 frame_by_frame_button = tk.Button(root, text="Frame by Frame Mode", command=toggle_frame_by_frame_mode)
 frame_by_frame_button.pack()
 
-# Function to show a specific frame
+# Global flag to indicate if show_frame is already running
+frame_rendering_in_progress = False
+
+
+# Function to show a specific frame with a debounce mechanism
 def show_frame(frame):
-    global read_counts, write_counts
+    global read_counts, write_counts, frame_rendering_in_progress
+
+    if frame_rendering_in_progress:
+        print(f"Skipping frame {frame}, rendering is already in progress.")
+        return  # Skip if already rendering
+
+    # Set flag to indicate rendering is in progress
+    frame_rendering_in_progress = True
+
+    start_time = time.time()  # Start timing the function
     if frame in frame_data:
         read_counts, write_counts = frame_data[frame]
-        update_colors()
+        update_box_colors()
+    end_time = time.time()  # End timing the function
+
+    # Clear the flag after rendering is done
+    frame_rendering_in_progress = False
+
+    print(f"Execution time for show_frame({frame}): {end_time - start_time:.4f} seconds")
+
 
 # Function to monitor the log file for memory accesses and update frame information
 # noinspection PyTypeChecker
@@ -365,7 +413,7 @@ def monitor_log():
                 print("Visualization is up to date with the end of the file.")
 
         # Update colors for the continuous mode
-        update_colors()
+        update_box_colors()
 
         # Schedule the next log check
     root.after(update_interval, lambda: monitor_log())
