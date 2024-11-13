@@ -49,10 +49,6 @@ def reset_map():
 reset_button = tk.Button(root, text="Reset Map", command=reset_map)
 reset_button.pack()
 
-# Initialize read and write counts for each box
-read_counts = [0] * num_boxes
-write_counts = [0] * num_boxes
-
 # Initialize the current memory range for zoom
 current_memory_start = 0
 current_memory_end = memory_size - 1
@@ -302,22 +298,8 @@ def show_frame(frame):
         read_counts, write_counts = frame_data[frame]
         update_colors()
 
-# Update read_counts and write_counts when zooming to the zoomed memory range
-def update_zoomed_counts():
-    global read_counts, write_counts
-    # Calculate the range of indexes in the global counts array for the zoomed range
-    start_index = int(current_memory_start / memory_size * len(global_read_counts))
-    end_index = start_index + num_boxes
-
-    # Slice and pad to ensure we have exactly num_boxes elements
-    read_counts = global_read_counts[start_index:end_index]
-    write_counts = global_write_counts[start_index:end_index]
-
-    # If the sliced range is shorter than num_boxes, pad with zeros
-    read_counts += [0] * (num_boxes - len(read_counts))
-    write_counts += [0] * (num_boxes - len(write_counts))
-
 # Function to monitor the log file for memory accesses and update frame information
+# noinspection PyTypeChecker
 def monitor_log(continue_monitoring=True):
     if continue_monitoring:
         global read_counts, write_counts, last_read_position, current_frame, current_frame_operations, max_frame
@@ -345,6 +327,8 @@ def monitor_log(continue_monitoring=True):
                                 address_hex = parts[3]
                                 value_hex = parts[5]
 
+                                if current_frame == 0:
+                                    frame_slider.config(from_=new_frame)
                                 # Track frame-specific data for frame-by-frame mode
                                 if new_frame != current_frame:
                                     # Store the current frame data before switching to the new frame
@@ -356,6 +340,7 @@ def monitor_log(continue_monitoring=True):
                                     # Reset read and write counts for the new frame
                                     read_counts = [0] * num_boxes
                                     write_counts = [0] * num_boxes
+
 
                                 # Process the memory access event
                                 address = int(address_hex, 16)
