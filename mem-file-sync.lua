@@ -2,6 +2,7 @@ local log_file_path = "memory_access.log"
 local max_log_size = 500 * 1024 * 1024  -- 50 MB
 local frame_counter = 0
 local delay_frames = 60  -- 65 seconds at 60 FPS
+local logger_enabled = false
 
 -- Attempt to open the log file for writing
 local log_file = io.open(log_file_path, "w")
@@ -83,48 +84,55 @@ end
 
 -- Callback function for memory write
 local function on_memory_write(address, value, mem_mask)
-    local current_frame1 = screen:frame_number()
-    local pc = main_cpu.state["CURPC"].value
-    local size = determine_size(mem_mask)
-    --local instruction = cpu.disassemble(pc)
-    local old_value = 0 --mem_space:read_u8(offset)  -- Assuming an 8-bit read before writing
-    local log_entry = string.format(
-        "%d,W,%X,%X,%d,%X,%X",
-        current_frame1, address, value, size, pc, mem_mask
-    )
-    write_to_log(log_entry .. "\n")
+
+    if logger_enabled then 
+        local current_frame1 = screen:frame_number()
+        local pc = main_cpu.state["CURPC"].value
+        local size = determine_size(mem_mask)
+        --local instruction = cpu.disassemble(pc)
+        local old_value = 0 --mem_space:read_u8(offset)  -- Assuming an 8-bit read before writing
+        local log_entry = string.format(
+            "%d,W,%X,%X,%d,%X,%X",
+            current_frame1, address, value, size, pc, mem_mask
+        )
+        write_to_log(log_entry .. "\n")
+    end
 end
 
 -- Callback function for memory read
 local function on_memory_read(address, value, mem_mask)
+    
+    if logger_enabled then 
+        local size = determine_size(mem_mask)
+        local current_frame1 = screen:frame_number()
+        local pc = main_cpu.state["CURPC"].value
 
-    local size = determine_size(mem_mask)
-    local current_frame1 = screen:frame_number()
-    local pc = main_cpu.state["CURPC"].value
+        --local instruction = main_cpu.disassemble(pc)
+        --rint("4")
+        --print(string.format("4-DEBUG: frame=%s, offset=%s, value=%s, size=%s, pc=%s, mem_mask=%X", tostring(current_frame1), tostring(address), tostring(value), tostring(size), tostring(pc), mem_mask))
 
-    --local instruction = main_cpu.disassemble(pc)
-    --rint("4")
-    --print(string.format("4-DEBUG: frame=%s, offset=%s, value=%s, size=%s, pc=%s, mem_mask=%X", tostring(current_frame1), tostring(address), tostring(value), tostring(size), tostring(pc), mem_mask))
+        local old_value = 0 -- mem_space:read_u8(address)  -- Assuming an 8-bit read
+        --print(string.format("5-DEBUG: frame=%d, offset=%X, value=%X, size=%d, pc=%X, old_value=%d, mem_mask=%X", current_frame1, address, value, size, pc, old_value, mem_mask))
 
-    local old_value = 0 -- mem_space:read_u8(address)  -- Assuming an 8-bit read
-    --print(string.format("5-DEBUG: frame=%d, offset=%X, value=%X, size=%d, pc=%X, old_value=%d, mem_mask=%X", current_frame1, address, value, size, pc, old_value, mem_mask))
+        --print("5")
 
-    --print("5")
+        local log_entry = string.format(
+            "%d,R,%X,%X,%d,%X,%X",
+            current_frame1, address, value, size, pc, mem_mask
+        )
 
-    local log_entry = string.format(
-        "%d,R,%X,%X,%d,%X,%X",
-        current_frame1, address, value, size, pc, mem_mask
-    )
-
-    write_to_log(log_entry .. "\n")
-
+        write_to_log(log_entry .. "\n")
+    end
 end
 
 -- Function to set memory taps
 local function set_memory_taps()
-    print("Setting memory read and write taps...")
-    passthrough_read = mem_space:install_read_tap(0x000000, 0xFFFFFF, "reads", on_memory_read)
-    passthrough_write = mem_space:install_write_tap(0x000000, 0xFFFFFF, "writes", on_memory_write)
+
+    if logger_enabled then 
+        print("Setting memory read and write taps...")
+        passthrough_read = mem_space:install_read_tap(0x000000, 0xFFFFFF, "reads", on_memory_read)
+        passthrough_write = mem_space:install_write_tap(0x000000, 0xFFFFFF, "writes", on_memory_write)
+    end
 end
 
 set_memory_taps()
@@ -132,9 +140,50 @@ set_memory_taps()
 -- Register a frame done callback to manage log buffer flushes and reinstall taps if necessary
 emu.register_frame_done(function()
 
+    -- Increment frame counter every frame
+    frame_counter = frame_counter + 1
+
+    -- Detect the CTRL+SHIFT+D key combination to toggle logging on/off
+    local ctrl_shift_d_pressed = manager.machine.input:seq_pressed(manager.machine.input:seq_from_tokens("KEYCODE_LCONTROL KEYCODE_LSHIFT KEYCODE_D"))
+    if ctrl_shift_d_pressed and not logger_toggle_debounced then
+        -- Toggle the logger state
+        logger_enabled = not logger_enabled
+        print("hypertracing " .. (logger_enabled and "enabled" or "disabled"))
+
+        -- Stop the previous trace (if it's running)
+        manager.machine.debugger:command('trace off')
+
+        if logger_enabled then
+            -- Manually construct the trace command string
+            local frame_str = "frame=" .. tostring(frame_counter)  -- Convert the frame number to a string
+            local trace_command = 'trace instructions.log,,,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
+
+            -- Execute the trace command
+            manager.machine.debugger:command(trace_command)
+        end
+        -- Set debounce flag to true to avoid repeated toggling
+        logger_toggle_debounced = true
+    elseif not ctrl_shift_d_pressed then
+        -- Reset debounce flag when the keys are released
+        logger_toggle_debounced = false
+    end
+
     -- Skip processing if the emulator is paused
     if manager.machine.paused then
         return
+    end
+
+    -- Update trace command each frame if logging is enabled
+    if logger_enabled then
+        -- Stop the previous trace (if it's running)
+        manager.machine.debugger:command('trace off')
+
+        -- Construct the new trace command with the current frame number
+        local frame_str = "frame=" .. tostring(frame_counter)
+        local trace_command = 'trace instructions.log,,,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
+
+        -- Start the trace again with the updated frame number
+        manager.machine.debugger:command(trace_command)
     end
 
     -- Flush the buffer to the log file every frame
@@ -142,12 +191,10 @@ emu.register_frame_done(function()
         log_file:write(table.concat(write_buffer))
         write_buffer = {}
     end
-    
-    -- Increment frame counter every frame
-    frame_counter = frame_counter + 1
 
     -- Reinstall memory taps every 60 frames
     if frame_counter % 60 == 0 then
         set_memory_taps()
     end
 end)
+
