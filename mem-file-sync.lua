@@ -24,6 +24,17 @@ if main_cpu_name == nil then
     error("No CPU found for memory access")
 end
 
+-- Function to save a snapshot
+local function save_frame_snapshot()
+    local filename = string.format("frames/%05d.png", frame_counter) -- e.g., frames/00001.png
+    local screen = manager.machine.screens[":screen"]
+    if screen then
+        screen:snapshot(filename)
+    else
+        print("No screen found in the current machine.")
+    end
+end
+
 -- Get the program memory space for the identified CPU
 local main_cpu = manager.machine.devices[main_cpu_name]
 local mem_space = manager.machine.devices[main_cpu_name].spaces["program"]
@@ -140,8 +151,11 @@ set_memory_taps()
 -- Register a frame done callback to manage log buffer flushes and reinstall taps if necessary
 emu.register_frame_done(function()
 
-    -- Increment frame counter every frame
-    frame_counter = frame_counter + 1
+    frame_counter = screen:frame_number()
+
+    if logger_enabled then
+        save_frame_snapshot()
+    end
 
     -- Detect the CTRL+SHIFT+D key combination to toggle logging on/off
     local ctrl_shift_d_pressed = manager.machine.input:seq_pressed(manager.machine.input:seq_from_tokens("KEYCODE_LCONTROL KEYCODE_LSHIFT KEYCODE_D"))
@@ -156,7 +170,7 @@ emu.register_frame_done(function()
         if logger_enabled then
             -- Manually construct the trace command string
             local frame_str = "frame=" .. tostring(frame_counter)  -- Convert the frame number to a string
-            local trace_command = 'trace instructions.log,,,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
+            local trace_command = 'trace ./instructions/'.. tostring(frame_counter) ..'.log,,,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
 
             -- Execute the trace command
             manager.machine.debugger:command(trace_command)
@@ -180,7 +194,7 @@ emu.register_frame_done(function()
 
         -- Construct the new trace command with the current frame number
         local frame_str = "frame=" .. tostring(frame_counter)
-        local trace_command = 'trace instructions.log,,,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
+        local trace_command = 'trace ./instructions/'.. tostring(frame_counter) ..'.log,,,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
 
         -- Start the trace again with the updated frame number
         manager.machine.debugger:command(trace_command)

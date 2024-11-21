@@ -3,6 +3,9 @@ import os
 import colorsys
 import time
 
+from PIL import Image, ImageTk
+
+
 # Define parameters for memory representation
 memory_size = 16 * 1024 * 1024  # 16 MB total memory
 num_boxes = 10000  # Increase the number of boxes to 10000 for higher resolution
@@ -28,8 +31,61 @@ root = tk.Tk()
 memory_range_label = tk.Label(root, text="Memory Range: 0x0 - 0xFFFFF")
 memory_range_label.pack()
 
+
+# Placeholder for the image widget
+frame_image_label = tk.Label(root)
+frame_image_label.pack(side="right")
+
+# Add a Scrollbar for horizontal scrolling
+instructions_scrollbar = tk.Scrollbar(root, orient="horizontal")
+instructions_scrollbar.pack(side="bottom", fill="x")
+
+# Add the Text widget for instructions with a scrollbar
+frame_instructions_text = tk.Text(
+    root,
+    width=70,  # Adjust width to fit your needs
+    height=40,  # Adjust height to fit your needs
+    wrap="none",  # Prevent text wrapping
+    font=("Courier", 10),  # Use monospaced font for alignment
+    xscrollcommand=instructions_scrollbar.set
+)
+frame_instructions_text.pack(side="right", padx=10)
+
+# Configure the scrollbar to work with the Text widget
+instructions_scrollbar.config(command=frame_instructions_text.xview)
+
+# Add a Text widget for displaying the diff results
+frame_diff_text = tk.Text(
+    root,
+    width=70,  # Adjust width to fit your needs
+    height=40,  # Adjust height to fit your needs
+    wrap="none",  # Prevent text wrapping
+    font=("Courier", 10)  # Use monospaced font for alignment
+)
+frame_diff_text.pack(side="right", padx=10)
+
 canvas = tk.Canvas(root, width=canvas_width, height=canvas_height + 100, bg="white")
 canvas.pack()
+
+def preprocess_instructions(instruction_lines):
+    """Preprocess instruction lines: remove 'frame=####' and extract instructions after '--'."""
+    processed_instructions = []
+    for line_number, line in enumerate(instruction_lines, start=1):
+        if "--" in line:
+            try:
+                # Split on '--' and take the part after it
+                _, instruction = line.split("--", 1)
+                processed_instructions.append((line_number, instruction.strip()))
+            except ValueError:
+                continue  # Skip lines that don't conform to the expected format
+    return processed_instructions
+
+def diff_instructions(prev_instructions, curr_instructions):
+    """Diff two sets of instructions and return new instructions."""
+    # Extract only the instruction strings for comparison
+    prev_set = {instr for _, instr in prev_instructions}
+    new_instructions = [(line_number, instr) for line_number, instr in curr_instructions if instr not in prev_set]
+    return new_instructions
 
 # Function to update the memory range label
 def update_memory_range_label(memory_start=None, memory_end=None):
@@ -355,6 +411,22 @@ frame_by_frame_button.pack()
 # Global flag to indicate if show_frame is already running
 frame_rendering_in_progress = False
 
+def dump_debug_instructions(frame, prev_instructions, curr_instructions):
+    """Dump current and previous instructions to debug files."""
+    try:
+        # Write current instructions to a debug file
+        current_debug_path = f"slide-debug-{frame:05d}-current.txt"
+        with open(current_debug_path, "w") as curr_debug_file:
+            curr_debug_file.write("\n".join(f"{instr}" for line_number, instr in curr_instructions))
+        print(f"Current instructions dumped to {current_debug_path}")
+
+        # Write previous instructions to a debug file
+        previous_debug_path = f"slide-debug-{frame:05d}-previous.txt"
+        with open(previous_debug_path, "w") as prev_debug_file:
+            prev_debug_file.write("\n".join(f"{instr}" for line_number, instr in prev_instructions))
+        print(f"Previous instructions dumped to {previous_debug_path}")
+    except Exception as e:
+        print(f"Error dumping debug instructions for frame {frame}: {e}")
 
 # Function to show a specific frame with a debounce mechanism
 def show_frame(frame):
@@ -371,11 +443,92 @@ def show_frame(frame):
     if frame in frame_data:
         read_counts, write_counts = frame_data[frame]
         update_box_colors()
-    end_time = time.time()  # End timing the function
 
+    # Load and display the PNG for the current frame
+    try:
+        frame_image_path = f"../../mame/snap/frames/{frame:05d}.png"
+        img = Image.open(frame_image_path)
+
+        # Calculate the new size while maintaining the aspect ratio
+        original_width, original_height = 384, 224
+        aspect_ratio = original_width / original_height
+
+        target_width = canvas_width
+        target_height = int(target_width / aspect_ratio)
+
+        if target_height > canvas_height:
+            target_height = canvas_height
+            target_width = int(target_height * aspect_ratio)
+
+        img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+
+        # Convert to a Tkinter-compatible image
+        img_tk = ImageTk.PhotoImage(img)
+
+        # Update the image label
+        frame_image_label.config(image=img_tk)
+        frame_image_label.image = img_tk  # Keep a reference to avoid garbage collection
+    except FileNotFoundError:
+        print(f"Frame image not found: {frame_image_path}")
+    except Exception as e:
+        print(f"Error displaying frame image: {e}")
+
+
+    # Load and display the instructions for the current frame
+    try:
+        instructions_file_path = f"../../mame/instructions/{frame}.log"
+        with open(instructions_file_path, "r") as instructions_file:
+            instructions = instructions_file.read()
+
+        # Update the text widget with the instructions
+        frame_instructions_text.delete("1.0", tk.END)  # Clear previous contents
+        frame_instructions_text.insert(tk.END, instructions)  # Insert new instructions
+    except FileNotFoundError:
+        print(f"Instructions file not found: {instructions_file_path}")
+        frame_instructions_text.delete("1.0", tk.END)
+        frame_instructions_text.insert(tk.END, "No instructions available for this frame.")
+    except Exception as e:
+        print(f"Error loading instructions: {e}")
+
+        # Load and preprocess the current and previous frame's instructions
+    try:
+        current_frame_path = f"../../mame/instructions/{frame}.log"
+        with open(current_frame_path, "r") as curr_file:
+            current_instructions = preprocess_instructions(curr_file.readlines())
+
+        previous_frame_path = f"../../mame/instructions/{frame - 1}.log"
+        previous_instructions = []
+        try:
+            with open(previous_frame_path, "r") as prev_file:
+                previous_instructions = preprocess_instructions(prev_file.readlines())
+        except FileNotFoundError:
+            pass  # If no previous frame exists, assume it's the first frame
+
+        # Dump debug files for the current and previous instructions
+        dump_debug_instructions(frame, previous_instructions, current_instructions)
+
+        # Perform the diff to get new instructions
+        new_instructions = diff_instructions(previous_instructions, current_instructions)
+
+        # Update the diff Text widget
+        frame_diff_text.delete("1.0", tk.END)  # Clear previous contents
+        if new_instructions:
+            diff_output = "\n".join(f"Line {line_number}: {instr}" for line_number, instr in new_instructions)
+            frame_diff_text.insert(tk.END, diff_output)
+        else:
+            frame_diff_text.insert(tk.END, "No new instructions in this frame.")
+    except FileNotFoundError as e:
+        print(f"Error loading instructions for frame {frame}: {e}")
+        frame_diff_text.delete("1.0", tk.END)
+        frame_diff_text.insert(tk.END, "Instructions not found for the current frame.")
+    except Exception as e:
+        print(f"Error processing diff: {e}")
+        frame_diff_text.delete("1.0", tk.END)
+        frame_diff_text.insert(tk.END, "Error processing instructions diff.")
     # Clear the flag after rendering is done
     frame_rendering_in_progress = False
 
+    end_time = time.time()  # End timing the function
     print(f"Execution time for show_frame({frame}): {end_time - start_time:.4f} seconds")
 
 
