@@ -170,7 +170,7 @@ emu.register_frame_done(function()
         if logger_enabled then
             -- Manually construct the trace command string
             local frame_str = "frame=" .. tostring(frame_counter)  -- Convert the frame number to a string
-            local trace_command = 'trace ./instructions/'.. tostring(frame_counter) ..'.log,,,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
+            local trace_command = 'trace ./instructions/'.. tostring(frame_counter) ..'.log,,noloop,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
 
             -- Execute the trace command
             manager.machine.debugger:command(trace_command)
@@ -194,7 +194,7 @@ emu.register_frame_done(function()
 
         -- Construct the new trace command with the current frame number
         local frame_str = "frame=" .. tostring(frame_counter)
-        local trace_command = 'trace ./instructions/'.. tostring(frame_counter) ..'.log,,,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
+        local trace_command = 'trace ./instructions/'.. tostring(frame_counter) ..'.log,,noloop,{ tracelog "' .. frame_str .. ' D0=%x D1=%x D2=%x D3=%x D4=%x D5=%x D6=%x D7=%x A0=%x A1=%x A2=%x A3=%x A4=%x A5=%x A6=%x PC=%x -- ",d0,d1,d2,d3,d4,d5,d6,d7,a0,a1,a2,a3,a4,a5,a6,pc }'
 
         -- Start the trace again with the updated frame number
         manager.machine.debugger:command(trace_command)

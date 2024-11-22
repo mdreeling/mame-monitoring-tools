@@ -31,7 +31,6 @@ root = tk.Tk()
 memory_range_label = tk.Label(root, text="Memory Range: 0x0 - 0xFFFFF")
 memory_range_label.pack()
 
-
 # Placeholder for the image widget
 frame_image_label = tk.Label(root)
 frame_image_label.pack(side="right")
@@ -64,8 +63,34 @@ frame_diff_text = tk.Text(
 )
 frame_diff_text.pack(side="right", padx=10)
 
+# Add a Label widget for displaying changed registers
+#registers_label = tk.Label(root, text="Changed Registers:", font=("Courier", 10), anchor="w", justify="left")
+#registers_label.pack(side="top", padx=10, pady=5)
+
 canvas = tk.Canvas(root, width=canvas_width, height=canvas_height + 100, bg="white")
 canvas.pack()
+
+def extract_registers(instruction_lines):
+    """Extract register values from the instruction lines."""
+    registers = {}
+    for line in instruction_lines:
+        if "--" in line:
+            parts = line.split("--")[0].split()  # Take the part before the "--"
+            for part in parts:
+                if "=" in part:
+                    reg, value = part.split("=")
+                    if reg.startswith("D") or reg.startswith("A") or reg == "PC":
+                        registers[reg] = value.strip()
+    return registers
+
+def diff_registers(prev_registers, curr_registers):
+    """Compare registers between frames and return the changed ones."""
+    changed_registers = {}
+    for reg, curr_value in curr_registers.items():
+        prev_value = prev_registers.get(reg)
+        if prev_value != curr_value:
+            changed_registers[reg] = (prev_value, curr_value)  # Store previous and current values
+    return changed_registers
 
 def preprocess_instructions(instruction_lines):
     """Preprocess instruction lines: remove 'frame=####' and extract instructions after '--'."""
@@ -492,15 +517,19 @@ def show_frame(frame):
 
         # Load and preprocess the current and previous frame's instructions
     try:
+        # Load and preprocess the current and previous frame's instructions
         current_frame_path = f"../../mame/instructions/{frame}.log"
         with open(current_frame_path, "r") as curr_file:
-            current_instructions = preprocess_instructions(curr_file.readlines())
+            current_instructions = curr_file.readlines()
+            current_registers = extract_registers(current_instructions)
 
         previous_frame_path = f"../../mame/instructions/{frame - 1}.log"
         previous_instructions = []
+        previous_registers = {}
         try:
             with open(previous_frame_path, "r") as prev_file:
-                previous_instructions = preprocess_instructions(prev_file.readlines())
+                previous_instructions = prev_file.readlines()
+                previous_registers = extract_registers(previous_instructions)
         except FileNotFoundError:
             pass  # If no previous frame exists, assume it's the first frame
 
@@ -508,7 +537,24 @@ def show_frame(frame):
         dump_debug_instructions(frame, previous_instructions, current_instructions)
 
         # Perform the diff to get new instructions
-        new_instructions = diff_instructions(previous_instructions, current_instructions)
+        new_instructions = diff_instructions(
+            preprocess_instructions(previous_instructions),
+            preprocess_instructions(current_instructions),
+        )
+
+        # Perform the diff to get changed registers
+        changed_registers = diff_registers(previous_registers, current_registers)
+
+        # Update the registers Label widget
+        if changed_registers:
+            registers_output = "\n".join(
+                f"{reg}: {prev} → {curr}"
+                for reg, (prev, curr) in changed_registers.items()
+            )
+        else:
+            registers_output = "No registers changed in this frame."
+
+        #registers_label.config(text=f"Changed Registers:\n{registers_output}")
 
         # Update the diff Text widget
         frame_diff_text.delete("1.0", tk.END)  # Clear previous contents
