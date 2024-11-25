@@ -5,36 +5,67 @@ import time
 
 from PIL import Image, ImageTk
 
+root = tk.Tk()
 
+# ----------------- MAIN FRAME --------------------------------------------------
+# Create a main frame to hold all UI elements
+main_frame = tk.Frame(root)
+main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+# ----------------- CODE FRAME --------------------------------------------------
+# Parameters for ROM visualization
+rom_size = 1 * 1024 * 1024  # 1 MB ROM size
+rom_num_boxes = 10000  # Number of boxes (e.g., 100x100 grid)
+rom_grid_size = 100  # 10x10 layout
+rom_box_size = rom_size // rom_num_boxes
+
+# Initialize ROM access counts
+rom_access_counts = [0] * rom_num_boxes
+
+# Create the ROM code frame
+code_frame = tk.Frame(main_frame)
+code_frame.pack(side="left", fill="y", expand=True, padx=5, pady=5)
+
+# Memory range label to show current section of memory
+code_range_label = tk.Label(code_frame, text="Code Range: 0x0 - 0xFFFFF")
+code_range_label.pack(side="top")
+
+# Create a canvas for the ROM access grid
+rom_canvas_width = 510  # Adjust canvas dimensions as needed
+rom_canvas_height = 510
+rom_canvas = tk.Canvas(code_frame, width=rom_canvas_width, height=rom_canvas_height, bg="light gray")
+rom_canvas.pack(side="left", padx=10, pady=10)
+
+# ----------------- MEMORY FRAME --------------------------------------------------
 # Define parameters for memory representation
 memory_size = 16 * 1024 * 1024  # 16 MB total memory
 num_boxes = 10000  # Increase the number of boxes to 10000 for higher resolution
 grid_size = 100  # Define grid size for 100x100 layout
-canvas_width = 1010  # Add 5 pixels of padding on each side
-canvas_height = 1010  # Add 5 pixels of padding on each side
+canvas_width = 510  # Add 5 pixels of padding on each side
+canvas_height = 510  # Add 5 pixels of padding on each side
 box_size = memory_size // num_boxes
 
 # Initialize global read and write counts for the entire memory size, not just num_boxes
 # This assumes each "box" at the top level corresponds to a smaller chunk of the total memory size.
 total_boxes = memory_size // box_size  # Determine total boxes for the entire memory range
-
 global_read_counts = [0] * total_boxes
 global_write_counts = [0] * total_boxes
-
 # Initialize the main read_counts and write_counts for the initial viewable range
 read_counts = global_read_counts[:num_boxes]
 write_counts = global_write_counts[:num_boxes]
 
-root = tk.Tk()
+# Create the memory code frame
+mem_frame = tk.Frame(main_frame)
+mem_frame.pack(side="left", fill="y", expand=True, padx=5, pady=5)
 
 # Memory range label to show current section of memory
-memory_range_label = tk.Label(root, text="Memory Range: 0x0 - 0xFFFFF")
-memory_range_label.pack()
+memory_range_label = tk.Label(mem_frame, text="Memory Range: 0x0 - 0xFFFFF")
+memory_range_label.pack(side="top")
 
-# Placeholder for the image widget
-frame_image_label = tk.Label(root)
-frame_image_label.pack(side="right")
-
+mem_canvas = tk.Canvas(mem_frame, width=canvas_width, height=canvas_height, bg="light gray")
+#mem_canvas.pack()
+mem_canvas.pack(side="left", padx=10, pady=10)
+# ----------------- OTHER --------------------------------------------------
 # Add a Scrollbar for horizontal scrolling
 instructions_scrollbar = tk.Scrollbar(root, orient="horizontal")
 instructions_scrollbar.pack(side="bottom", fill="x")
@@ -42,8 +73,8 @@ instructions_scrollbar.pack(side="bottom", fill="x")
 # Add the Text widget for instructions with a scrollbar
 frame_instructions_text = tk.Text(
     root,
-    width=70,  # Adjust width to fit your needs
-    height=40,  # Adjust height to fit your needs
+    width=40,  # Adjust width to fit your needs
+    height=30,  # Adjust height to fit your needs
     wrap="none",  # Prevent text wrapping
     font=("Courier", 10),  # Use monospaced font for alignment
     xscrollcommand=instructions_scrollbar.set
@@ -56,19 +87,22 @@ instructions_scrollbar.config(command=frame_instructions_text.xview)
 # Add a Text widget for displaying the diff results
 frame_diff_text = tk.Text(
     root,
-    width=70,  # Adjust width to fit your needs
-    height=40,  # Adjust height to fit your needs
+    width=40,  # Adjust width to fit your needs
+    height=30,  # Adjust height to fit your needs
     wrap="none",  # Prevent text wrapping
     font=("Courier", 10)  # Use monospaced font for alignment
 )
 frame_diff_text.pack(side="right", padx=10)
 
+# Placeholder for the image widget
+frame_image_label = tk.Label(root)
+frame_image_label.pack(side="bottom")
+
+
 # Add a Label widget for displaying changed registers
 #registers_label = tk.Label(root, text="Changed Registers:", font=("Courier", 10), anchor="w", justify="left")
 #registers_label.pack(side="top", padx=10, pady=5)
 
-canvas = tk.Canvas(root, width=canvas_width, height=canvas_height + 100, bg="white")
-canvas.pack()
 
 def extract_registers(instruction_lines):
     """Extract register values from the instruction lines."""
@@ -129,7 +163,7 @@ def reset_map():
     update_memory_range_label()  # Update label after reset
 
 reset_button = tk.Button(root, text="Reset Map", command=reset_map)
-reset_button.pack()
+#reset_button.pack()
 
 # Initialize the current memory range for zoom
 current_memory_start = 0
@@ -137,8 +171,8 @@ current_memory_end = memory_size - 1
 
 # Initialize the Zoom Out button but keep it hidden initially
 zoom_out_button = tk.Button(root, text="Zoom Out", command=lambda: zoom_out())
-zoom_out_button.pack()
-zoom_out_button.place_forget()  # Hide the button initially
+#zoom_out_button.pack()
+#zoom_out_button.place_forget()  # Hide the button initially
 
 # Function to zoom out and reset the view to the original memory range
 def zoom_out():
@@ -212,14 +246,61 @@ def update_zoomed_counts():
     write_counts += [0] * (num_boxes - len(write_counts))
 
 # Bind double-click event to zoom into the clicked box
-canvas.bind("<Double-Button-1>", zoom_into_box)
+mem_canvas.bind("<Double-Button-1>", zoom_into_box)
 
 # Draw initial boxes on the canvas and keep track of them by tags
 box_tags = []
 
+# Draw initial ROM grid
+def draw_rom_grid():
+    print("Drawing grid")
+    rom_canvas.delete("all")  # Clear the canvas
+    padding = 5  # Padding around the grid
+    for i in range(rom_num_boxes):
+        row = i // rom_grid_size
+        col = i % rom_grid_size
+        x0 = padding + col * ((rom_canvas_width - 2 * padding) // rom_grid_size)
+        x1 = padding + (col + 1) * ((rom_canvas_width - 2 * padding) // rom_grid_size)
+        y0 = padding + row * ((rom_canvas_height - 2 * padding) // rom_grid_size)
+        y1 = padding + (row + 1) * ((rom_canvas_height - 2 * padding) // rom_grid_size)
+        rom_canvas.create_rectangle(x0, y0, x1, y1, outline="lightgray", fill="white", tags=f"rom_box_{i}")
+
+draw_rom_grid()
+
+# Update ROM access grid based on PC values
+def update_rom_grid(pc_values):
+    # Reset ROM access counts
+    global rom_access_counts
+    rom_access_counts = [0] * rom_num_boxes
+
+    # Map PC values to grid boxes
+    for pc in pc_values:
+        box_index = pc // rom_box_size
+        if 0 <= box_index < rom_num_boxes:
+            rom_access_counts[box_index] += 1
+
+    # Update colors on the grid
+    max_access = max(rom_access_counts) if rom_access_counts else 1  # Avoid division by zero
+    for i in range(rom_num_boxes):
+        intensity = int((rom_access_counts[i] / max_access) * 255)  # Scale intensity
+        color = f"#{255-intensity:02x}{255-intensity:02x}{255-intensity:02x}"  # Grayscale
+        rom_canvas.itemconfig(f"rom_box_{i}", fill=color)
+
+# Extract PC values from instruction logs
+def extract_pc_values(instruction_lines):
+    pc_values = []
+    for line in instruction_lines:
+        if "PC=" in line:
+            parts = line.split()
+            for part in parts:
+                if part.startswith("PC="):
+                    pc = int(part.split("=")[1], 16)  # Convert hexadecimal to integer
+                    pc_values.append(pc)
+    return pc_values
+       
 def draw_initial_boxes():
     print("drawing initial boxes")
-    canvas.delete("all")  # Clear existing boxes
+    mem_canvas.delete("all")  # Clear existing boxes
     padding = 5  # 5 pixels of padding
     for i in range(num_boxes):
         row = i // grid_size
@@ -229,7 +310,7 @@ def draw_initial_boxes():
         y0 = padding + row * ((canvas_height - 2 * padding) // grid_size)
         y1 = padding + (row + 1) * ((canvas_height - 2 * padding) // grid_size)
         tag = f"box_{i}"
-        canvas.create_rectangle(x0, y0, x1, y1, outline="lightgray", fill="white", tags=tag)
+        mem_canvas.create_rectangle(x0, y0, x1, y1, outline="lightgray", fill="white", tags=tag)
         box_tags.append(tag)
 
 draw_initial_boxes()
@@ -244,27 +325,27 @@ def draw_legend():
     legend_y = canvas_height + 10
     legend_spacing = 20
     
-    canvas.create_text(legend_x, legend_y, anchor="nw", text="Legend:", font=("Arial", 10, "bold"))
+    mem_canvas.create_text(legend_x, legend_y, anchor="nw", text="Legend:", font=("Arial", 10, "bold"))
     
     # Light blue to dark blue gradient for reads only
-    canvas.create_rectangle(legend_x, legend_y + legend_spacing, legend_x + 15, legend_y + legend_spacing + 15, fill="#add8e6", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + legend_spacing, anchor="nw", text="Reads Only (Low)", font=("Arial", 10))
-    canvas.create_rectangle(legend_x, legend_y + 2 * legend_spacing, legend_x + 15, legend_y + 2 * legend_spacing + 15, fill="#00008b", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + 2 * legend_spacing, anchor="nw", text="Reads Only (High)", font=("Arial", 10))
+    mem_canvas.create_rectangle(legend_x, legend_y + legend_spacing, legend_x + 15, legend_y + legend_spacing + 15, fill="#add8e6", outline="lightgray")
+    mem_canvas.create_text(legend_x + 20, legend_y + legend_spacing, anchor="nw", text="Reads Only (Low)", font=("Arial", 10))
+    mem_canvas.create_rectangle(legend_x, legend_y + 2 * legend_spacing, legend_x + 15, legend_y + 2 * legend_spacing + 15, fill="#00008b", outline="lightgray")
+    mem_canvas.create_text(legend_x + 20, legend_y + 2 * legend_spacing, anchor="nw", text="Reads Only (High)", font=("Arial", 10))
     
     # Light green to dark green gradient for writes only
-    canvas.create_rectangle(legend_x, legend_y + 3 * legend_spacing, legend_x + 15, legend_y + 3 * legend_spacing + 15, fill="#90ee90", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + 3 * legend_spacing, anchor="nw", text="Writes Only (Low)", font=("Arial", 10))
-    canvas.create_rectangle(legend_x, legend_y + 4 * legend_spacing, legend_x + 15, legend_y + 4 * legend_spacing + 15, fill="#006400", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + 4 * legend_spacing, anchor="nw", text="Writes Only (High)", font=("Arial", 10))
+    mem_canvas.create_rectangle(legend_x, legend_y + 3 * legend_spacing, legend_x + 15, legend_y + 3 * legend_spacing + 15, fill="#90ee90", outline="lightgray")
+    mem_canvas.create_text(legend_x + 20, legend_y + 3 * legend_spacing, anchor="nw", text="Writes Only (Low)", font=("Arial", 10))
+    mem_canvas.create_rectangle(legend_x, legend_y + 4 * legend_spacing, legend_x + 15, legend_y + 4 * legend_spacing + 15, fill="#006400", outline="lightgray")
+    mem_canvas.create_text(legend_x + 20, legend_y + 4 * legend_spacing, anchor="nw", text="Writes Only (High)", font=("Arial", 10))
     
     # Yellow to red gradient for reads and writes
-    canvas.create_rectangle(legend_x, legend_y + 5 * legend_spacing, legend_x + 15, legend_y + 5 * legend_spacing + 15, fill="#ffff00", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + 5 * legend_spacing, anchor="nw", text="Reads and Writes (Low)", font=("Arial", 10))
-    canvas.create_rectangle(legend_x, legend_y + 6 * legend_spacing, legend_x + 15, legend_y + 6 * legend_spacing + 15, fill="#ff0000", outline="lightgray")
-    canvas.create_text(legend_x + 20, legend_y + 6 * legend_spacing, anchor="nw", text="Reads and Writes (High)", font=("Arial", 10))
+    mem_canvas.create_rectangle(legend_x, legend_y + 5 * legend_spacing, legend_x + 15, legend_y + 5 * legend_spacing + 15, fill="#ffff00", outline="lightgray")
+    mem_canvas.create_text(legend_x + 20, legend_y + 5 * legend_spacing, anchor="nw", text="Reads and Writes (Low)", font=("Arial", 10))
+    mem_canvas.create_rectangle(legend_x, legend_y + 6 * legend_spacing, legend_x + 15, legend_y + 6 * legend_spacing + 15, fill="#ff0000", outline="lightgray")
+    mem_canvas.create_text(legend_x + 20, legend_y + 6 * legend_spacing, anchor="nw", text="Reads and Writes (High)", font=("Arial", 10))
 
-draw_legend()
+# draw_legend()
 current_colors = ["white"] * num_boxes
 
 # For flashing indicators
@@ -337,9 +418,9 @@ def update_box_colors():
             flash_x(i)
 
     for tag, color in update_operations:
-        canvas.itemconfig(tag, fill=color)
+        mem_canvas.itemconfig(tag, fill=color)
 
-    canvas.update()  # Finally update the canvas
+    mem_canvas.update()  # Finally update the canvas
 
 def flash_x(index):
     # Determine the coordinates for the box
@@ -355,11 +436,11 @@ def flash_x(index):
 
     # Draw the yellow "X"
     x_tag = f"flash_x_{index}"
-    line1 = canvas.create_line(x0, y0, x1, y1, fill="yellow", width=2, tags=x_tag)
-    line2 = canvas.create_line(x0, y1, x1, y0, fill="yellow", width=2, tags=x_tag)
+    line1 = mem_canvas.create_line(x0, y0, x1, y1, fill="yellow", width=2, tags=x_tag)
+    line2 = mem_canvas.create_line(x0, y1, x1, y0, fill="yellow", width=2, tags=x_tag)
 
     # Remove the "X" after a short delay to create a flashing effect
-    canvas.after(300, lambda: canvas.delete(x_tag))
+    mem_canvas.after(300, lambda: mem_canvas.delete(x_tag))
 
 
 # Display memory information when hovering over a box
@@ -378,15 +459,15 @@ def on_hover(event):
         write_count = write_counts[box_index]
         info_text = (f"Memory Range: {hex(memory_range_start)} - {hex(memory_range_end)}\n"
                      f"Reads: {read_count}, Writes: {write_count}")
-        canvas.delete("hover_text")
-        canvas.create_text(event.x, event.y, text=info_text, anchor="nw", tags="hover_text", fill="black")
+        mem_canvas.delete("hover_text")
+        mem_canvas.create_text(event.x, event.y, text=info_text, anchor="nw", tags="hover_text", fill="black")
 
 # Clear hover information when the mouse leaves the canvas
 def on_leave(event):
-    canvas.delete("hover_text")
+    mem_canvas.delete("hover_text")
 
-canvas.bind("<Motion>", on_hover)
-canvas.bind("<Leave>", on_leave)
+mem_canvas.bind("<Motion>", on_hover)
+mem_canvas.bind("<Leave>", on_leave)
  
 # Monitor the memory access log file for changes with roll-over detection
 log_file_path = "../../mame/memory_access.log"
@@ -534,7 +615,7 @@ def show_frame(frame):
             pass  # If no previous frame exists, assume it's the first frame
 
         # Dump debug files for the current and previous instructions
-        dump_debug_instructions(frame, previous_instructions, current_instructions)
+        # dump_debug_instructions(frame, previous_instructions, current_instructions)
 
         # Perform the diff to get new instructions
         new_instructions = diff_instructions(
@@ -563,6 +644,11 @@ def show_frame(frame):
             frame_diff_text.insert(tk.END, diff_output)
         else:
             frame_diff_text.insert(tk.END, "No new instructions in this frame.")
+        
+        # Extract PC values and update the ROM grid
+        pc_values = extract_pc_values(current_instructions)
+        update_rom_grid(pc_values)
+
     except FileNotFoundError as e:
         print(f"Error loading instructions for frame {frame}: {e}")
         frame_diff_text.delete("1.0", tk.END)
