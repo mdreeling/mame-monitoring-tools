@@ -7,12 +7,17 @@ import math
 from PIL import Image, ImageTk
 
 root = tk.Tk()
-
 # ----------------- MAIN FRAME --------------------------------------------------
 # Create a main frame to hold all UI elements
 main_frame = tk.Frame(root)
 main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
+#------------------ MAIN CANVAS -------------------------------------------------
+# Create a main canvas to hold both ROM and memory grids
+m_canvas_width = 1100  # Adjust as needed
+m_canvas_height = 600  # Adjust as needed
+
+# overlay_canvas.wm_attributes('-transparentcolor', 'white')
 # ----------------- CODE FRAME --------------------------------------------------
 # Parameters for ROM visualization
 rom_size = 1 * 1024 * 1024  # 1 MB ROM size
@@ -64,7 +69,6 @@ memory_range_label = tk.Label(mem_frame, text="Memory Range: 0x0 - 0xFFFFF")
 memory_range_label.pack(side="top")
 
 mem_canvas = tk.Canvas(mem_frame, width=mem_canvas_width, height=mem_canvas_height, bg="light gray")
-#mem_canvas.pack()
 mem_canvas.pack(side="left", padx=10, pady=10)
 # ----------------- OTHER --------------------------------------------------
 # Add a Scrollbar for horizontal scrolling
@@ -252,6 +256,47 @@ mem_canvas.bind("<Double-Button-1>", zoom_into_box)
 # Draw initial boxes on the canvas and keep track of them by tags
 box_tags = []
 
+# Function to map PC and memory addresses to their grid positions
+def get_box_coordinates(x_offset, y_offset, grid_size, num_boxes, grid_width, grid_height, address, box_size):
+    """Calculate the grid coordinates for a given address."""
+    box_index = address // box_size
+    if 0 <= box_index < num_boxes:
+        padding = 5  # Grid padding
+        row = box_index // grid_size
+        col = box_index % grid_size
+        x0 = x_offset + padding + col * ((grid_width - 2 * padding) // grid_size)
+        x1 = x0 + ((grid_width - 2 * padding) // grid_size)
+        y0 = y_offset + padding + row * ((grid_height - 2 * padding) // grid_size)
+        y1 = y0 + ((grid_height - 2 * padding) // grid_size)
+        return (x0 + x1) // 2, (y0 + y1) // 2  # Return the center of the box
+    return None
+
+
+def draw_rom_to_mem_connections(access_data):
+    """Draw connections between ROM (PC) and memory boxes."""
+    overlay_canvas.delete("connection")  # Clear previous connections
+
+    unique_connections = set()  # Track unique connections
+
+    for pc, access_type, mem_address in access_data:
+        # Get ROM and memory coordinates
+        rom_coords = get_box_coordinates(
+            0, 0, rom_grid_size, rom_num_boxes, rom_canvas_width, rom_canvas_height, int(pc,16), rom_box_size
+        )
+        mem_coords = get_box_coordinates(
+            rom_canvas_width + 10, 0, mem_grid_size, mem_num_boxes, mem_canvas_width, mem_canvas_height, int(mem_address, 16), mem_box_size
+        )
+
+        if rom_coords and mem_coords:
+            connection = (rom_coords, mem_coords, access_type)
+            if connection not in unique_connections:
+                unique_connections.add(connection)
+                color = "blue" if access_type == "R" else "green"  # Blue for reads, green for writes
+                overlay_canvas.create_line(
+                    *rom_coords, *mem_coords, fill=color, width=2, tags="connection"
+                )
+
+
 # Draw initial ROM grid
 def draw_rom_grid():
     print("Drawing grid")
@@ -268,7 +313,7 @@ def draw_rom_grid():
 
 draw_rom_grid()
 
-def update_rom_grid(pc_values):
+def update_rom_grid(pc_values, access_data):
     """Update the ROM grid based on PC values (single or list)."""
     global rom_access_counts
     #rom_access_counts = [0] * rom_num_boxes  # Reset access counts
@@ -301,6 +346,8 @@ def update_rom_grid(pc_values):
         color = f"#{255 - intensity:02x}{255 - intensity:02x}{255 - intensity:02x}"  # Grayscale
         rom_canvas.itemconfig(f"rom_box_{i}", fill=color)
 
+        # Draw connections
+    # draw_rom_to_mem_connections(access_data)
 
 # Extract PC values from instruction logs
 def extract_pc_values(instruction_lines):
@@ -715,6 +762,7 @@ def monitor_log(pcounter=None):
     global mem_read_counts, mem_write_counts, last_read_position, current_frame, current_frame_operations, max_frame, continue_monitoring
 
     pcounter = []
+    access_data = []  # (PC, Access Type, Memory Address)
 
     if continue_monitoring:
         if os.path.exists(log_file_path):
@@ -744,6 +792,7 @@ def monitor_log(pcounter=None):
 
                                 # Add the PC counter addresses to the list that were accessed during this read cycle
                                 pcounter.append(parts[5])
+                                access_data.append((parts[5], access_type, address_hex))
 
                                 if current_frame == 0:
                                     frame_slider.config(from_=new_frame)
@@ -783,7 +832,7 @@ def monitor_log(pcounter=None):
 
         # Call update_rom_grid only if pcounter is not empty
         if pcounter:
-            update_rom_grid(pcounter)
+            update_rom_grid(pcounter, access_data)
         # Schedule the next log check
     root.after(update_interval, lambda: monitor_log())
 
