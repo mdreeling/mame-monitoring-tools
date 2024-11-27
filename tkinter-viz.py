@@ -108,6 +108,13 @@ frame_diff_text.pack(side="right", padx=10)
 frame_image_label = tk.Label(root)
 frame_image_label.pack(side="bottom")
 
+# Memory range label to show current section of memory
+frame_progress_label = tk.Label(root, text="Frame Processed : ")
+frame_progress_label.pack()
+
+# Example: Update the frame progress label
+def update_frame_progress(the_frame):
+    frame_progress_label.configure(text=f"Frame Processed: {the_frame}")
 
 # Add a Label widget for displaying changed registers
 #registers_label = tk.Label(root, text="Changed Registers:", font=("Courier", 10), anchor="w", justify="left")
@@ -299,7 +306,7 @@ def draw_rom_to_mem_connections(access_data):
                 unique_connections.add(connection)
                 color = "blue" if access_type == "R" else "green"  # Blue for reads, green for writes
                 main_canvas.create_line(
-                    *rom_coords, *mem_coords, fill=color, width=2, tags="connection"
+                    *rom_coords, *mem_coords, fill=color, width=1, tags="connection"
                 )
 
 
@@ -808,6 +815,7 @@ def monitor_log(pc_values=None):
     global_access_data = []  # (PC, Access Type, Memory Address)
     this_frame_data_set = set()  # (PC, Access Type, Memory Address)
     prev_frame_data_set = set()
+    new_frame = None
     if continue_monitoring:
         if os.path.exists(log_file_path):
             file_size = os.path.getsize(log_file_path)
@@ -878,6 +886,8 @@ def monitor_log(pc_values=None):
 
         # Update colors for the continuous mode
         update_memory_grid()
+        if new_frame:
+            update_frame_progress(new_frame)
 
         # Call update_rom_grid only if pcounter is not empty
         if pc_values:
