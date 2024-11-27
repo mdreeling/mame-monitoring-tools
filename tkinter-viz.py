@@ -14,62 +14,67 @@ main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
 #------------------ MAIN CANVAS -------------------------------------------------
 # Create a main canvas to hold both ROM and memory grids
-m_canvas_width = 1100  # Adjust as needed
-m_canvas_height = 600  # Adjust as needed
+# Create a single canvas for both ROM and memory grids
+canvas_width = 1050  # Combined width for ROM and Memory grids
+canvas_height = 520  # Shared height for both grids
+main_canvas = tk.Canvas(main_frame, width=canvas_width, height=canvas_height, bg="gray", borderwidth=0, highlightthickness=0)
+main_canvas.pack(fill="both", expand=True)
 
 # overlay_canvas.wm_attributes('-transparentcolor', 'white')
 # ----------------- CODE FRAME --------------------------------------------------
 # Parameters for ROM visualization
 rom_size = 1 * 1024 * 1024  # 1 MB ROM size
-rom_num_boxes = 10000  # Number of boxes (e.g., 100x100 grid)
-rom_grid_size = 100  # 10x10 layout
-rom_box_size = rom_size // rom_num_boxes
-
+rom_section_num_boxes = 10000  # Number of boxes (e.g., 100x100 grid)
+rom_section_grid_size = 100  # 10x10 layout
+rom_section_width = 510  # Adjust canvas dimensions as needed
+rom_section_height = 510
+rom_section_padding = 5
+rom_section_box_square_size = (rom_section_width - (rom_section_padding * 2)) / rom_section_grid_size
+rom_section_addresses_per_box = rom_size // rom_section_num_boxes # how many addresses does each box represent?
 # Initialize ROM access counts
-rom_access_counts = [0] * rom_num_boxes
+rom_section_access_counts = [0] * rom_section_num_boxes
+rom_section_x_offset = 10
+rom_section_y_offset = 50
 
 # Create the ROM code frame
 code_frame = tk.Frame(main_frame)
 code_frame.pack(side="left", fill="y", expand=True, padx=5, pady=5)
 
 # Memory range label to show current section of memory
-code_range_label = tk.Label(code_frame, text="Code Range: 0x0 - 0xFFFFF")
-code_range_label.pack(side="top")
+code_range_label = tk.Label(main_frame, text="Code Range: 0x0 - 0xFFFFF")
+code_range_label.place(x=10, y=10)  # Position above ROM grid
 
-# Create a canvas for the ROM access grid
-rom_canvas_width = 510  # Adjust canvas dimensions as needed
-rom_canvas_height = 510
-rom_canvas = tk.Canvas(code_frame, width=rom_canvas_width, height=rom_canvas_height, bg="light gray")
-rom_canvas.pack(side="left", padx=10, pady=10)
 
 # ----------------- MEMORY FRAME --------------------------------------------------
 # Define parameters for memory representation
-mem_memory_size = 16 * 1024 * 1024  # 16 MB total memory
-mem_num_boxes = 10000  # Increase the number of boxes to 10000 for higher resolution
-mem_grid_size = 100  # Define grid size for 100x100 layout
-mem_canvas_width = 510  # Add 5 pixels of padding on each side
-mem_canvas_height = 510  # Add 5 pixels of padding on each side
-mem_box_size = mem_memory_size // mem_num_boxes
-
+mem_section_memory_size = 16 * 1024 * 1024  # 16 MB total memory
+mem_section_num_boxes = 10000  # Increase the number of boxes to 10000 for higher resolution
+mem_section_grid_size = 100  # Define grid size for 100x100 layout
+mem_section_width = 510  # Add 5 pixels of padding on each side
+mem_section_height = 510  # Add 5 pixels of padding on each side
+mem_section_box_size = mem_section_memory_size // mem_section_num_boxes
+mem_section_padding = 5
+mem_section_box_square_size = (rom_section_width - (rom_section_padding * 2)) / rom_section_grid_size
+mem_section_addresses_per_box = rom_size // rom_section_num_boxes # how many addresses does each box represent?
+mem_section_x_offset = x_offset=canvas_width // 2 + 10
+mem_section_y_offset = 50
 # Initialize global read and write counts for the entire memory size, not just num_boxes
 # This assumes each "box" at the top level corresponds to a smaller chunk of the total memory size.
-mem_total_boxes = mem_memory_size // mem_box_size  # Determine total boxes for the entire memory range
+mem_total_boxes = mem_section_memory_size // mem_section_box_size  # Determine total boxes for the entire memory range
 global_read_counts = [0] * mem_total_boxes
 global_write_counts = [0] * mem_total_boxes
 # Initialize the main read_counts and write_counts for the initial viewable range
-mem_read_counts = global_read_counts[:mem_num_boxes]
-mem_write_counts = global_write_counts[:mem_num_boxes]
+mem_read_counts = global_read_counts[:mem_section_num_boxes]
+mem_write_counts = global_write_counts[:mem_section_num_boxes]
 
 # Create the memory code frame
 mem_frame = tk.Frame(main_frame)
 mem_frame.pack(side="left", fill="y", expand=True, padx=5, pady=5)
 
 # Memory range label to show current section of memory
-memory_range_label = tk.Label(mem_frame, text="Memory Range: 0x0 - 0xFFFFF")
-memory_range_label.pack(side="top")
+memory_range_label = tk.Label(main_frame, text="Memory Range: 0x0 - 0xFFFFF")
+memory_range_label.place(x=canvas_width // 2 + 10, y=10)  # Position above Memory grid
 
-mem_canvas = tk.Canvas(mem_frame, width=mem_canvas_width, height=mem_canvas_height, bg="light gray")
-mem_canvas.pack(side="left", padx=10, pady=10)
 # ----------------- OTHER --------------------------------------------------
 # Add a Scrollbar for horizontal scrolling
 instructions_scrollbar = tk.Scrollbar(root, orient="horizontal")
@@ -155,16 +160,16 @@ def diff_instructions(prev_instructions, curr_instructions):
 def update_memory_range_label(memory_start=None, memory_end=None):
     if memory_start is None or memory_end is None:
         memory_start = 0  # Default start
-        memory_end = mem_num_boxes * mem_box_size - 1  # Default end
+        memory_end = mem_section_num_boxes * mem_section_box_size - 1  # Default end
     memory_range_label.config(text=f"Memory Range: {hex(memory_start)} - {hex(memory_end)}")
 
 # Create the Reset button
 def reset_map():
-    global mem_read_counts, mem_write_counts, mem_box_size
-    mem_box_size = mem_memory_size // mem_num_boxes  # Reset box size to the original full range
-    mem_read_counts = [0] * mem_num_boxes
-    mem_write_counts = [0] * mem_num_boxes
-    update_box_colors()
+    global mem_read_counts, mem_write_counts, mem_section_box_size
+    mem_section_box_size = mem_section_memory_size // mem_section_num_boxes  # Reset box size to the original full range
+    mem_read_counts = [0] * mem_section_num_boxes
+    mem_write_counts = [0] * mem_section_num_boxes
+    update_memory_grid()
     update_memory_range_label()  # Update label after reset
 
 reset_button = tk.Button(root, text="Reset Map", command=reset_map)
@@ -172,7 +177,7 @@ reset_button = tk.Button(root, text="Reset Map", command=reset_map)
 
 # Initialize the current memory range for zoom
 current_memory_start = 0
-current_memory_end = mem_memory_size - 1
+current_memory_end = mem_section_memory_size - 1
 
 # Initialize the Zoom Out button but keep it hidden initially
 zoom_out_button = tk.Button(root, text="Zoom Out", command=lambda: zoom_out())
@@ -181,16 +186,16 @@ zoom_out_button = tk.Button(root, text="Zoom Out", command=lambda: zoom_out())
 
 # Function to zoom out and reset the view to the original memory range
 def zoom_out():
-    global current_memory_start, current_memory_end, mem_box_size, mem_read_counts, mem_write_counts
+    global current_memory_start, current_memory_end, mem_section_box_size, mem_read_counts, mem_write_counts
 
     # Reset to the original memory range
     current_memory_start = 0
-    current_memory_end = mem_memory_size - 1
-    mem_box_size = mem_memory_size // mem_num_boxes
+    current_memory_end = mem_section_memory_size - 1
+    mem_section_box_size = mem_section_memory_size // mem_section_num_boxes
 
     # Update the main read_counts and write_counts to the full range
-    mem_read_counts = global_read_counts[:mem_num_boxes]
-    mem_write_counts = global_write_counts[:mem_num_boxes]
+    mem_read_counts = global_read_counts[:mem_section_num_boxes]
+    mem_write_counts = global_write_counts[:mem_section_num_boxes]
 
     # Hide the Zoom Out button
     zoom_out_button.place_forget()
@@ -199,20 +204,20 @@ def zoom_out():
     update_memory_range_label(current_memory_start, current_memory_end)
 
     # Redraw the initial grid
-    draw_initial_boxes()
+    draw_memory_grid()
 
 # Update the zoom function to show the Zoom Out button when zooming in
 def zoom_into_box(event):
-    global mem_box_size, current_memory_start, current_memory_end
+    global mem_section_box_size, current_memory_start, current_memory_end
     padding = 5
-    col = (event.x - padding) // ((mem_canvas_width - 2 * padding) // mem_grid_size)
-    row = (event.y - padding) // ((mem_canvas_height - 2 * padding) // mem_grid_size)
-    box_index = row * mem_grid_size + col
+    col = (event.x - padding) // ((mem_section_width - 2 * padding) // mem_section_grid_size)
+    row = (event.y - padding) // ((mem_section_height - 2 * padding) // mem_section_grid_size)
+    box_index = row * mem_section_grid_size + col
     
-    if 0 <= box_index < mem_num_boxes:
+    if 0 <= box_index < mem_section_num_boxes:
         # Calculate the memory range for the selected box within the current visible range
         memory_range = current_memory_end - current_memory_start + 1
-        box_memory_size = memory_range // mem_num_boxes
+        box_memory_size = memory_range // mem_section_num_boxes
 
         # Determine the start and end of the new memory range based on the selected box
         new_memory_start = current_memory_start + (box_index * box_memory_size)
@@ -222,7 +227,7 @@ def zoom_into_box(event):
         current_memory_start, current_memory_end = new_memory_start, new_memory_end
 
         # Set new box size to reflect the zoomed-in range
-        mem_box_size = max((new_memory_end - new_memory_start + 1) // mem_num_boxes, 1)
+        mem_section_box_size = max((new_memory_end - new_memory_start + 1) // mem_section_num_boxes, 1)
         # Update the displayed memory range label to focus on this box's range
         update_memory_range_label(new_memory_start, new_memory_end)
 
@@ -230,28 +235,28 @@ def zoom_into_box(event):
         update_zoomed_counts()
 
         # Redraw the grid based on the new memory range
-        draw_initial_boxes()
+        draw_memory_grid()
 
         # Show the Zoom Out button after zooming in
-        zoom_out_button.place(x=10, y=mem_canvas_height + 50)
+        zoom_out_button.place(x=10, y=mem_section_height + 50)
 
 # Update read_counts and write_counts when zooming to the zoomed memory range
 def update_zoomed_counts():
     global mem_read_counts, mem_write_counts
     # Calculate the range of indexes in the global counts array for the zoomed range
-    start_index = int(current_memory_start / mem_memory_size * len(global_read_counts))
-    end_index = start_index + mem_num_boxes
+    start_index = int(current_memory_start / mem_section_memory_size * len(global_read_counts))
+    end_index = start_index + mem_section_num_boxes
 
     # Slice and pad to ensure we have exactly num_boxes elements
     mem_read_counts = global_read_counts[start_index:end_index]
     mem_write_counts = global_write_counts[start_index:end_index]
 
     # If the sliced range is shorter than num_boxes, pad with zeros
-    mem_read_counts += [0] * (mem_num_boxes - len(mem_read_counts))
-    mem_write_counts += [0] * (mem_num_boxes - len(mem_write_counts))
+    mem_read_counts += [0] * (mem_section_num_boxes - len(mem_read_counts))
+    mem_write_counts += [0] * (mem_section_num_boxes - len(mem_write_counts))
 
 # Bind double-click event to zoom into the clicked box
-mem_canvas.bind("<Double-Button-1>", zoom_into_box)
+main_canvas.bind("<Double-Button-1>", zoom_into_box)
 
 # Draw initial boxes on the canvas and keep track of them by tags
 box_tags = []
@@ -274,17 +279,18 @@ def get_box_coordinates(x_offset, y_offset, grid_size, num_boxes, grid_width, gr
 
 def draw_rom_to_mem_connections(access_data):
     """Draw connections between ROM (PC) and memory boxes."""
-    overlay_canvas.delete("connection")  # Clear previous connections
+    #if frame_by_frame_mode:
+    main_canvas.delete("connection")  # Clear previous connections
 
     unique_connections = set()  # Track unique connections
 
     for pc, access_type, mem_address in access_data:
         # Get ROM and memory coordinates
         rom_coords = get_box_coordinates(
-            0, 0, rom_grid_size, rom_num_boxes, rom_canvas_width, rom_canvas_height, int(pc,16), rom_box_size
+            rom_section_x_offset, rom_section_y_offset, rom_section_grid_size, rom_section_num_boxes, rom_section_width, rom_section_height, int(pc, 16), rom_section_addresses_per_box
         )
         mem_coords = get_box_coordinates(
-            rom_canvas_width + 10, 0, mem_grid_size, mem_num_boxes, mem_canvas_width, mem_canvas_height, int(mem_address, 16), mem_box_size
+            mem_section_x_offset, mem_section_y_offset, mem_section_grid_size, mem_section_num_boxes, mem_section_width, mem_section_height, int(mem_address, 16), mem_section_box_size
         )
 
         if rom_coords and mem_coords:
@@ -292,7 +298,7 @@ def draw_rom_to_mem_connections(access_data):
             if connection not in unique_connections:
                 unique_connections.add(connection)
                 color = "blue" if access_type == "R" else "green"  # Blue for reads, green for writes
-                overlay_canvas.create_line(
+                main_canvas.create_line(
                     *rom_coords, *mem_coords, fill=color, width=2, tags="connection"
                 )
 
@@ -300,22 +306,24 @@ def draw_rom_to_mem_connections(access_data):
 # Draw initial ROM grid
 def draw_rom_grid():
     print("Drawing grid")
-    rom_canvas.delete("all")  # Clear the canvas
+    #rom_canvas.delete("all")  # Clear the canvas
     padding = 5  # Padding around the grid
-    for i in range(rom_num_boxes):
-        row = i // rom_grid_size
-        col = i % rom_grid_size
-        x0 = padding + col * ((rom_canvas_width - 2 * padding) // rom_grid_size)
-        x1 = padding + (col + 1) * ((rom_canvas_width - 2 * padding) // rom_grid_size)
-        y0 = padding + row * ((rom_canvas_height - 2 * padding) // rom_grid_size)
-        y1 = padding + (row + 1) * ((rom_canvas_height - 2 * padding) // rom_grid_size)
-        rom_canvas.create_rectangle(x0, y0, x1, y1, outline="lightgray", fill="white", tags=f"rom_box_{i}")
+    for i in range(rom_section_num_boxes):
+        row = i // rom_section_grid_size
+        col = i % rom_section_grid_size
+        x0 = rom_section_x_offset + padding + col * ((rom_section_width - 2 * padding) // rom_section_grid_size)
+        x1 = x0 + rom_section_box_square_size
+        y0 = rom_section_y_offset + padding + row * ((rom_section_height - 2 * padding) // rom_section_grid_size)
+        y1 = y0 + rom_section_box_square_size
+
+        #if col == 99:
+        main_canvas.create_rectangle(x0, y0, x1, y1, outline="lightgray", fill="white", tags=f"rom_box_{i}")
 
 draw_rom_grid()
 
-def update_rom_grid(pc_values, access_data):
+def update_rom_grid(pc_values):
     """Update the ROM grid based on PC values (single or list)."""
-    global rom_access_counts
+    global rom_section_access_counts
     #rom_access_counts = [0] * rom_num_boxes  # Reset access counts
 
     print(f"Number of elements in pc_values: {len(pc_values)}")
@@ -329,25 +337,22 @@ def update_rom_grid(pc_values, access_data):
 
     # Map PC values to grid boxes
     for pc in pc_values:
-        box_index = pc // rom_box_size
-        if 0 <= box_index < rom_num_boxes:
-            rom_access_counts[box_index] += 1
+        box_index = pc // rom_section_addresses_per_box
+        if 0 <= box_index < rom_section_num_boxes:
+            rom_section_access_counts[box_index] += 1
 
     print(f"Number of ints in pc_values: {len(pc_values)}")
 
     # Update colors on the grid with logarithmic scaling
-    max_access = max(rom_access_counts) if rom_access_counts else 1  # Avoid division by zero
-    for i in range(rom_num_boxes):
-        if rom_access_counts[i] > 0:
+    max_access = max(rom_section_access_counts) if rom_section_access_counts else 1  # Avoid division by zero
+    for i in range(rom_section_num_boxes):
+        if rom_section_access_counts[i] > 0:
             # Apply logarithmic scaling
-            intensity = int((math.log(rom_access_counts[i] + 1) / math.log(max_access + 1)) * 255)
+            intensity = int((math.log(rom_section_access_counts[i] + 1) / math.log(max_access + 1)) * 255)
         else:
             intensity = 0  # No access, set intensity to 0
         color = f"#{255 - intensity:02x}{255 - intensity:02x}{255 - intensity:02x}"  # Grayscale
-        rom_canvas.itemconfig(f"rom_box_{i}", fill=color)
-
-        # Draw connections
-    # draw_rom_to_mem_connections(access_data)
+        main_canvas.itemconfig(f"rom_box_{i}", fill=color)
 
 # Extract PC values from instruction logs
 def extract_pc_values(instruction_lines):
@@ -361,22 +366,22 @@ def extract_pc_values(instruction_lines):
                     pc_values.append(pc)
     return pc_values
        
-def draw_initial_boxes():
-    print("drawing initial boxes")
-    mem_canvas.delete("all")  # Clear existing boxes
+def draw_memory_grid():
+    print("drawing memory grid")
+    #mem_canvas.delete("all")  # Clear existing boxes
     padding = 5  # 5 pixels of padding
-    for i in range(mem_num_boxes):
-        row = i // mem_grid_size
-        col = i % mem_grid_size
-        x0 = padding + col * ((mem_canvas_width - 2 * padding) // mem_grid_size)
-        x1 = padding + (col + 1) * ((mem_canvas_width - 2 * padding) // mem_grid_size)
-        y0 = padding + row * ((mem_canvas_height - 2 * padding) // mem_grid_size)
-        y1 = padding + (row + 1) * ((mem_canvas_height - 2 * padding) // mem_grid_size)
+    for i in range(mem_section_num_boxes):
+        row = i // mem_section_grid_size
+        col = i % mem_section_grid_size
+        x0 = mem_section_x_offset + padding + col * ((mem_section_width - 2 * padding) // mem_section_grid_size)
+        x1 = x0 + mem_section_box_square_size
+        y0 = mem_section_y_offset + padding + row * ((mem_section_height - 2 * padding) // mem_section_grid_size)
+        y1 = y0 + mem_section_box_square_size
         tag = f"box_{i}"
-        mem_canvas.create_rectangle(x0, y0, x1, y1, outline="lightgray", fill="white", tags=tag)
+        main_canvas.create_rectangle(x0, y0, x1, y1, outline="lightgray", fill="white", tags=tag)
         box_tags.append(tag)
 
-draw_initial_boxes()
+draw_memory_grid()
 update_memory_range_label()  # Initialize label
 
 # Remaining code for legend, box color updating, hover events, and log monitoring continues as before.
@@ -385,7 +390,7 @@ update_memory_range_label()  # Initialize label
 # Draw legend
 def draw_legend():
     legend_x = 10
-    legend_y = mem_canvas_height + 10
+    legend_y = mem_section_height + 10
     legend_spacing = 20
     
     mem_canvas.create_text(legend_x, legend_y, anchor="nw", text="Legend:", font=("Arial", 10, "bold"))
@@ -409,11 +414,11 @@ def draw_legend():
     mem_canvas.create_text(legend_x + 20, legend_y + 6 * legend_spacing, anchor="nw", text="Reads and Writes (High)", font=("Arial", 10))
 
 # draw_legend()
-current_colors = ["white"] * mem_num_boxes
+current_colors = ["white"] * mem_section_num_boxes
 
 # For flashing indicators
-prev_read_counts = [0] * mem_num_boxes
-prev_write_counts = [0] * mem_num_boxes
+prev_read_counts = [0] * mem_section_num_boxes
+prev_write_counts = [0] * mem_section_num_boxes
 threshold = 1  # Number of reads/writes to trigger flashing
 
 def precompute_gradients():
@@ -438,13 +443,13 @@ def precompute_gradients():
 
 read_gradient, write_gradient = precompute_gradients()
 
-def update_box_colors():
-    max_accesses = max(mem_read_counts[i] + mem_write_counts[i] for i in range(mem_num_boxes))
+def update_memory_grid():
+    max_accesses = max(mem_read_counts[i] + mem_write_counts[i] for i in range(mem_section_num_boxes))
     if max_accesses == 0:
         max_accesses = 1  # Avoid division by zero
 
     update_operations = []
-    for i in range(mem_num_boxes):
+    for i in range(mem_section_num_boxes):
         read_count = mem_read_counts[i]
         write_count = mem_write_counts[i]
         total_accesses = read_count + write_count
@@ -478,88 +483,115 @@ def update_box_colors():
         prev_write_counts[i] = write_count
 
         if read_diff > threshold or write_diff > threshold:
-            flash_x(i)
+            flash_after_memory_access(i)
 
     for tag, color in update_operations:
-        mem_canvas.itemconfig(tag, fill=color)
+        main_canvas.itemconfig(tag, fill=color)
 
-    mem_canvas.update()  # Finally update the canvas
+    main_canvas.update()  # Finally update the canvas
 
-def flash_x(index):
+def flash_after_memory_access(index):
     # Determine the coordinates for the box
-    row = index // mem_grid_size
-    col = index % mem_grid_size
+    row = index // mem_section_grid_size
+    col = index % mem_section_grid_size
     padding = 5
-    box_width = (mem_canvas_width - 2 * padding) // mem_grid_size
-    box_height = (mem_canvas_height - 2 * padding) // mem_grid_size
-    x0 = padding + col * box_width
-    y0 = padding + row * box_height
+    box_width = (mem_section_width - 2 * padding) // mem_section_grid_size
+    box_height = (mem_section_height - 2 * padding) // mem_section_grid_size
+    x0 = mem_section_x_offset + padding + col * box_width
+    y0 = mem_section_y_offset + padding + row * box_height
     x1 = x0 + box_width
     y1 = y0 + box_height
 
     # Draw the yellow "X"
     x_tag = f"flash_x_{index}"
-    line1 = mem_canvas.create_line(x0, y0, x1, y1, fill="yellow", width=2, tags=x_tag)
-    line2 = mem_canvas.create_line(x0, y1, x1, y0, fill="yellow", width=2, tags=x_tag)
+    line1 = main_canvas.create_line(x0, y0, x1, y1, fill="yellow", width=2, tags=x_tag)
+    line2 = main_canvas.create_line(x0, y1, x1, y0, fill="yellow", width=2, tags=x_tag)
 
     # Remove the "X" after a short delay to create a flashing effect
-    mem_canvas.after(300, lambda: mem_canvas.delete(x_tag))
+    main_canvas.after(300, lambda: main_canvas.delete(x_tag))
 
 
 # Display memory information when hovering over a box
-def on_hover(event):
+def on_mem_hover(event):
     padding = 5
-    col = (event.x - padding) // ((mem_canvas_width - 2 * padding) // mem_grid_size)
-    row = (event.y - padding) // ((mem_canvas_height - 2 * padding) // mem_grid_size)
-    box_index = row * mem_grid_size + col
+    col = (event.x - padding) // ((mem_section_width - 2 * padding) // mem_section_grid_size)
+    row = (event.y - padding) // ((mem_section_height - 2 * padding) // mem_section_grid_size)
+    box_index = row * mem_section_grid_size + col
     
-    if 0 <= box_index < mem_num_boxes:  # Ensure box_index is within bounds
+    if 0 <= box_index < mem_section_num_boxes:  # Ensure box_index is within bounds
         # Calculate the memory range for the current box in the zoomed range
-        memory_range_start = current_memory_start + box_index * mem_box_size
-        memory_range_end = memory_range_start + mem_box_size - 1
+        memory_range_start = current_memory_start + box_index * mem_section_box_size
+        memory_range_end = memory_range_start + mem_section_box_size - 1
         
         read_count = mem_read_counts[box_index]
         write_count = mem_write_counts[box_index]
         info_text = (f"Memory Range: {hex(memory_range_start)} - {hex(memory_range_end)}\n"
                      f"Reads: {read_count}, Writes: {write_count}")
-        mem_canvas.delete("hover_text")
-        mem_canvas.create_text(event.x, event.y, text=info_text, anchor="nw", tags="hover_text", fill="black")
+        main_canvas.delete("hover_mem_text")
+        main_canvas.create_text(event.x, event.y, text=info_text, anchor="nw", tags="hover_mem_text", fill="black")
 
 # Clear hover information when the mouse leaves the canvas
-def on_leave(event):
-    mem_canvas.delete("hover_text")
+def on_mem_leave(event):
+    main_canvas.delete("hover_mem_text")
 
-mem_canvas.bind("<Motion>", on_hover)
-mem_canvas.bind("<Leave>", on_leave)
+# OUT main_canvas.bind("<Motion>", on_mem_hover)
+# OUT main_canvas.bind("<Leave>", on_mem_leave)
 
 
 # Display memory information when hovering over a box
 def on_rom_hover(event):
-    padding = 5
-    col = (event.x - padding) // ((rom_canvas_width - 2 * padding) // rom_grid_size)
-    row = (event.y - padding) // ((rom_canvas_height - 2 * padding) // rom_grid_size)
-    box_index = row * rom_grid_size + col
+    # ROM Section Hover
+    if ((rom_section_x_offset + rom_section_width) < event.x < mem_section_x_offset
+            or event.x < rom_section_x_offset
+            or event.y < rom_section_y_offset):
+        main_canvas.delete("hover_rom_text")
 
-    if 0 <= box_index < rom_num_boxes:  # Ensure box_index is within bounds
-        # Calculate the memory range for the current box in the zoomed range
-        memory_range_start = current_memory_start + box_index * rom_box_size
-        memory_range_end = memory_range_start + rom_box_size - 1
+    if((
+            rom_section_x_offset <= event.x <= rom_section_x_offset + rom_section_width) and event.y >= rom_section_y_offset):
+        padding = 5
+        col = (event.x - rom_section_x_offset - padding) // ((rom_section_width - 2 * padding) // rom_section_grid_size)
+        row = (event.y - rom_section_y_offset - padding) // ((rom_section_height - 2 * padding) // rom_section_grid_size)
+        box_index = row * rom_section_grid_size + col
+
+        if 0 <= box_index < rom_section_num_boxes:  # Ensure box_index is within bounds
+            # Calculate the memory range for the current box in the zoomed range
+            memory_range_start = current_memory_start + box_index * rom_section_addresses_per_box
+            memory_range_end = memory_range_start + rom_section_addresses_per_box - 1
 
 
 
-        access_count = rom_access_counts[box_index]
-        info_text = (f"Memory Range: {hex(memory_range_start)} - {hex(memory_range_end)}\n"
-                     f"Access Count: {access_count}")
-        rom_canvas.delete("hover_text")
-        rom_canvas.create_text(event.x, event.y, text=info_text, anchor="nw", tags="hover_text", fill="black")
+            access_count = rom_section_access_counts[box_index]
+            info_text = (f"ROM Code Range: {hex(memory_range_start)} - {hex(memory_range_end)}\n"
+                         f"Access Count: {access_count}")
+            main_canvas.delete("hover_rom_text")
+            main_canvas.create_text(event.x, event.y, text=info_text, anchor="nw", tags="hover_rom_text", fill="black")
+    # Memory Section Hover
+    if ((
+            mem_section_x_offset <= event.x <= mem_section_x_offset + mem_section_width) and event.y >= mem_section_y_offset):
+        padding = 5
+        col = (event.x - mem_section_x_offset - padding) // ((mem_section_width - 2 * padding) // mem_section_grid_size)
+        row = (event.y - mem_section_y_offset - padding) // ((mem_section_height - 2 * padding) // mem_section_grid_size)
+        box_index = row * mem_section_grid_size + col
+
+        if 0 <= box_index < mem_section_num_boxes:  # Ensure box_index is within bounds
+            # Calculate the memory range for the current box in the zoomed range
+            memory_range_start = current_memory_start + box_index * mem_section_addresses_per_box
+            memory_range_end = memory_range_start + mem_section_addresses_per_box - 1
+
+            read_count = mem_read_counts[box_index]
+            write_count = mem_write_counts[box_index]
+            info_text = (f"Memory Range: {hex(memory_range_start)} - {hex(memory_range_end)}\n"
+            f"Reads: {read_count}, Writes: {write_count}")
+            main_canvas.delete("hover_rom_text")
+            main_canvas.create_text(event.x, event.y, text=info_text, anchor="nw", tags="hover_rom_text", fill="black")
 
 
 # Clear hover information when the mouse leaves the canvas
 def on_rom_leave(event):
-    rom_canvas.delete("hover_text")
+    main_canvas.delete("hover_rom_text")
 
-rom_canvas.bind("<Motion>", on_rom_hover)
-rom_canvas.bind("<Leave>", on_rom_leave)
+main_canvas.bind("<Motion>", on_rom_hover)
+main_canvas.bind("<Leave>", on_rom_leave)
 
 # Monitor the memory access log file for changes with roll-over detection
 log_file_path = "../../mame/memory_access.log"
@@ -574,6 +606,10 @@ gradient_cache = {}
 
 # Frame data to track specific frame memory accesses
 frame_data = {}  # Dictionary to store read/write counts per frame for frame-by-frame mode
+
+# Frame data to track specific memory accesses by specific pieces of the code
+rom_access_data = {}  # Dictionary to store memory accesses per Program Counter execeution for frame-by-frame mode
+
 
 # Frame-by-frame mode state
 frame_by_frame_mode = False
@@ -605,6 +641,12 @@ def toggle_frame_by_frame_mode():
 
 frame_by_frame_button = tk.Button(root, text="Frame by Frame Mode", command=toggle_frame_by_frame_mode)
 frame_by_frame_button.pack()
+
+def remove_connections():
+    main_canvas.delete("connection")
+
+remove_connections_button = tk.Button(root, text="Kill connections", command=remove_connections)
+remove_connections_button.pack()
 
 # Global flag to indicate if show_frame is already running
 frame_rendering_in_progress = False
@@ -640,7 +682,8 @@ def show_frame(frame):
     start_time = time.time()  # Start timing the function
     if frame in frame_data:
         mem_read_counts, mem_write_counts = frame_data[frame]
-        update_box_colors()
+        update_memory_grid()
+        draw_rom_to_mem_connections(rom_access_data[frame])
 
     # Load and display the PNG for the current frame
     try:
@@ -651,11 +694,11 @@ def show_frame(frame):
         original_width, original_height = 384, 224
         aspect_ratio = original_width / original_height
 
-        target_width = mem_canvas_width
+        target_width = mem_section_width
         target_height = int(target_width / aspect_ratio)
 
-        if target_height > mem_canvas_height:
-            target_height = mem_canvas_height
+        if target_height > mem_section_height:
+            target_height = mem_section_height
             target_width = int(target_height * aspect_ratio)
 
         img = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
@@ -758,12 +801,13 @@ def show_frame(frame):
 
 # Function to monitor the log file for memory accesses and update frame information
 # noinspection PyTypeChecker
-def monitor_log(pcounter=None):
+def monitor_log(pc_values=None):
     global mem_read_counts, mem_write_counts, last_read_position, current_frame, current_frame_operations, max_frame, continue_monitoring
 
-    pcounter = []
-    access_data = []  # (PC, Access Type, Memory Address)
-
+    pc_values = []
+    global_access_data = []  # (PC, Access Type, Memory Address)
+    this_frame_data_set = set()  # (PC, Access Type, Memory Address)
+    prev_frame_data_set = set()
     if continue_monitoring:
         if os.path.exists(log_file_path):
             file_size = os.path.getsize(log_file_path)
@@ -791,8 +835,10 @@ def monitor_log(pcounter=None):
                                 size = parts[4]
 
                                 # Add the PC counter addresses to the list that were accessed during this read cycle
-                                pcounter.append(parts[5])
-                                access_data.append((parts[5], access_type, address_hex))
+                                pc_values.append(parts[5])
+                                this_frames_access_data = (parts[5], access_type, address_hex)
+                                global_access_data.append(this_frames_access_data)
+                                this_frame_data_set.add(this_frames_access_data)
 
                                 if current_frame == 0:
                                     frame_slider.config(from_=new_frame)
@@ -800,22 +846,25 @@ def monitor_log(pcounter=None):
                                 if new_frame != current_frame:
                                     # Store the current frame data before switching to the new frame
                                     frame_data[current_frame] = (mem_read_counts[:], mem_write_counts[:])
+                                    rom_access_data[current_frame] = list(this_frame_data_set-prev_frame_data_set)
                                     current_frame = new_frame
                                     max_frame = max(max_frame, new_frame)
                                     frame_slider.config(to=max_frame)
+                                    prev_frame_data_set = this_frame_data_set
+                                    this_frame_data_set = set() # Reset the frame data so it only has this frames access data for frame by frame mode
 
                                 if not continue_monitoring:
                                     # Reset read and write counts for the new frame
-                                    mem_read_counts = [0] * mem_num_boxes
-                                    mem_write_counts = [0] * mem_num_boxes
+                                    mem_read_counts = [0] * mem_section_num_boxes
+                                    mem_write_counts = [0] * mem_section_num_boxes
 
 
                                 # Process the memory access event
                                 address = int(address_hex, 16)
                                 value = int(value_hex, 16)
-                                box_index = (address - current_memory_start) // mem_box_size
+                                box_index = (address - current_memory_start) // mem_section_box_size
 
-                                if 0 <= box_index < mem_num_boxes:
+                                if 0 <= box_index < mem_section_num_boxes:
                                     if access_type == 'R':
                                         mem_read_counts[box_index] += 1
                                     elif access_type == 'W':
@@ -828,11 +877,12 @@ def monitor_log(pcounter=None):
                 print("Visualization is up to date with the end of the file.")
 
         # Update colors for the continuous mode
-        update_box_colors()
+        update_memory_grid()
 
         # Call update_rom_grid only if pcounter is not empty
-        if pcounter:
-            update_rom_grid(pcounter, access_data)
+        if pc_values:
+            update_rom_grid(pc_values) # Update the rom grid with the latest Program Counter values
+            draw_rom_to_mem_connections(global_access_data) # Draw the latest connections from ROM to RAM
         # Schedule the next log check
     root.after(update_interval, lambda: monitor_log())
 
