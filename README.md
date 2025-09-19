@@ -74,6 +74,7 @@ In FbF mode
 - The diff between instructions on this frame and the previous frame is shown in the box beside the image
 - The entire set of instructions that occurred on this frame are shown in the right most box
 
+
 Thats it, i hope you find this useful, and have fun
 
 
